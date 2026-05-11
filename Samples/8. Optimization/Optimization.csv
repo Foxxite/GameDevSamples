@@ -1,0 +1,2 @@
+﻿#;Number Of Ships;Worst FPS;Best FPS;% CPU Time Worst;Improvements;% CPU Time New;Maintainabilty Effects;Effects Functionality;Tested On
+1;30;60;60;21,65;Remove collision from particles by setting group to none;8,76;Extra check for collision group (none);No;Desktop
