@@ -17,6 +17,12 @@ namespace SpaceDefence
         public Texture2D sprite;
         public Color color = Color.White;
 
+        public Particle()
+        {
+            CollisionType = CollisionType.None;
+            SetCollider(new CircleCollider(0,0,0));
+        }
+
         public override void Load(ContentManager content)
         {
             sprite = content.Load<Texture2D>("Particle");

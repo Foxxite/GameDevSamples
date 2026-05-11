@@ -69,14 +69,13 @@ namespace SpaceDefence
             {
                 for (int j = i+1; j < _gameObjects.Count; j++)
                 {
-                    if (_gameObjects[i].CheckCollision(_gameObjects[j]))
+                    if (_gameObjects[i].CollisionType != CollisionType.None && _gameObjects[j].CollisionType != CollisionType.None && _gameObjects[i].CheckCollision(_gameObjects[j]))
                     {
                         _gameObjects[i].OnCollision(_gameObjects[j]);
                         _gameObjects[j].OnCollision(_gameObjects[i]);
                     }
                 }
             }
-            
         }
         
         public void Update(GameTime gameTime) 

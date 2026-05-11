@@ -104,6 +104,12 @@
 /processorParam:TextureFormat=Color
 /build:Particle.png
 
+#begin RecolorShader.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:RecolorShader.fx
+
 #begin ship_body.png
 /importer:TextureImporter
 /processor:TextureProcessor

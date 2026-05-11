@@ -10,5 +10,6 @@ namespace SpaceDefence
         Team2 = 2,
         Teams = 3,
         Solid = 4,
+        None = 5,
     }
 }
