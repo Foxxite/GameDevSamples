@@ -18,6 +18,7 @@ namespace SpaceDefence
 
 		private Texture2D ship_body;
 		private Texture2D base_turret;
+		private Texture2D debug_pixel;
 
 		private RectangleCollider _rectangleCollider;
 		private Point target;
@@ -44,9 +45,9 @@ namespace SpaceDefence
 		{
 			// Original ship sprites from: https://zintoki.itch.io/space-breaker
 
-			// Setting up the texture data so we can apply our colouring later
 			ship_body = content.Load<Texture2D>("ship_body");
 			base_turret = content.Load<Texture2D>("base_turret");
+			debug_pixel = content.Load<Texture2D>("pixel");
 
 			_rectangleCollider.shape.Size = ship_body.Bounds.Size;
 			_rectangleCollider.shape.Location -= new Point(ship_body.Width / 2, ship_body.Height / 2);
@@ -75,11 +76,13 @@ namespace SpaceDefence
 				if (health < 0)
 				{
 					GameManager.GetGameManager().RemoveGameObject(this);
-					ParticleData data = new ParticleData();
-					data.lifespan = 5;
-					data.particleCount = 40;
-					data.maxScale = .6f;
-					data.minScale = .2f;
+					ParticleData data = new ParticleData
+					{
+						lifespan = 5,
+						particleCount = 40,
+						maxScale = .6f,
+						minScale = .2f
+					};
 					new ParticleEmitter(GetPosition().Center.ToVector2(), data).Emit();
 				}
 			}
@@ -90,6 +93,7 @@ namespace SpaceDefence
 		{
 			base.Update(gameTime);
 			cooldown -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+
 			Ship nearest = FindNearestEnemy();
 			target = nearest == null ? Point.Zero : nearest.GetPosition().Center;
 
@@ -104,8 +108,8 @@ namespace SpaceDefence
 			{
 				_rectangleCollider.shape.Location += (Vector2.Normalize((target - GetPosition().Center).ToVector2()) * speed * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
 			}
-			_rectangleCollider.shape.Location += (AvoidObstacles() * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
 
+			_rectangleCollider.shape.Location += (AvoidObstacles() * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
 		}
 
 		public Point Shoot()
@@ -121,12 +125,12 @@ namespace SpaceDefence
 		public Vector2 AvoidObstacles()
 		{
 			Vector2 avoidance = Vector2.Zero;
-			foreach (GameObject other in GameManager.GetGameManager().GetGameObjects())
+			foreach (GameObject other in GameManager.GetGameManager().GetGameObjectsByType(typeof(Bullet)))
 			{
-				if (other == this || !other.CollisionType.HasFlag(CollisionType.Solid))
-					continue;
 				Vector2 difference = (GetPosition().Center - other.GetPosition().Center).ToVector2();
+
 				float distance = difference.Length();
+
 				if (distance < AvoidanceRange)
 				{
 					avoidance += (float)Math.Sqrt(AvoidanceRange) * speed * Vector2.Normalize(difference) / (float)Math.Sqrt(distance);
@@ -138,32 +142,38 @@ namespace SpaceDefence
 		public Ship FindNearestEnemy()
 		{
 			Ship nearest = null;
-			foreach (GameObject candidate in GameManager.GetGameManager().GetGameObjects())
+			foreach (GameObject candidate in GameManager.GetGameManager().GetGameObjectsByType(typeof(Ship)))
 			{
-				if (candidate is Ship)
+				Ship othership = (Ship)candidate;
+				if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
+					continue;
+
+				if (nearest == null)
 				{
-					Ship othership = (Ship)candidate;
-					if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
-						continue;
-					if (nearest == null)
-					{
-						nearest = othership;
-						continue;
-					}
-					Vector2 pos = GetPosition().Center.ToVector2();
-					Vector2 nearPos = nearest.GetPosition().Center.ToVector2();
-					Vector2 newPos = othership.GetPosition().Center.ToVector2();
-					if ((pos - nearPos).Length() > (pos - newPos).Length())
-					{
-						nearest = othership;
-					}
+					nearest = othership;
+					continue;
+				}
+
+				Vector2 pos = GetPosition().Center.ToVector2();
+				Vector2 nearPos = nearest.GetPosition().Center.ToVector2();
+				Vector2 newPos = othership.GetPosition().Center.ToVector2();
+
+				if ((pos - nearPos).Length() > (pos - newPos).Length())
+				{
+					nearest = othership;
 				}
 			}
+
 			return nearest;
 		}
 
 		public void Draw(GameTime gameTime, SpriteBatch spriteBatch, Matrix worldMatrix)
 		{
+			// Debug draw the collider
+			// spriteBatch.Begin(transformMatrix: worldMatrix);
+			// spriteBatch.Draw(debug_pixel, _rectangleCollider.shape, Color.Yellow);
+			// spriteBatch.End();
+
 			recolorShader.Parameters["TeamColor"].SetValue(teamColor.ToVector4());
 			recolorShader.Parameters["HealthPercentage"].SetValue(health / 100f);
 

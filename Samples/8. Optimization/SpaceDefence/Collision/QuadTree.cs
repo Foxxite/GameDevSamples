@@ -147,7 +147,7 @@ namespace SpaceDefence.Collision
 		}
 
 		/// <summary>
-		/// Fills the provided list with nearby candidates — avoids allocating a new list each call.
+		/// Fills the provided list with nearby candidates - avoids allocating a new list each call.
 		/// </summary>
 		public void Retrieve(List<GameObject> result, Rectangle rect)
 		{
