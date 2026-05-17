@@ -6,9 +6,9 @@
 5;200;1;60;38,83;Fix issues with collision, did flags incorrectly in the first try, Also cache some expensive lookups and add early returns,;5,62;None;No;Desktop
 6;800;1;1;;Increase ship count to better see issues;;None;;Desktop
 7;800;1;2;30,43;Replace CircleCollider Contains internal square root with a direct squared compare, But with so many object this has a small impact.;28,58;None;No;Desktop
-8;800;2;2;;Replace collision systeem with QuadTree, makes other lookups also faster;;None;No;Desktop
-9;800;2;2;16,75;Replace Circle Reactangle intersect with more performant version;12,77;None;No;Desktop
-10;800;2;2;;Cache game objects by type in GameManager;;Ships and other gameobjects can now more easily find game objects by type;No;Desktop
+8;800;2;2;16,75;Replace Circle Reactangle intersect with more performant version;12,77;None;No;Desktop
+9;800;2;2;;Cache game objects by type in GameManager;;Ships and other gameobjects can now more easily find game objects by type;No;Desktop
+10;;;;;;;;;
 11;;;;;;;;;
 12;;;;;;;;;
 13;;;;;;;;;

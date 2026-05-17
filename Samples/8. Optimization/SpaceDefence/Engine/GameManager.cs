@@ -21,8 +21,9 @@ namespace SpaceDefence
 		private List<GameObject> _toBeAdded;
 		private ContentManager _content;
 
-		private readonly QuadTree _quadTree = new(0, new Rectangle(0, 0, 1920, 1080));
-		private readonly List<GameObject> _nearby = new(); // Reused every frame
+		// Debug draw resources
+		private Texture2D _debugPixel;
+		public bool DebugDrawQuadTree { get; set; } = true;
 
 		public Matrix WorldMatrix { get; set; }
 
@@ -66,6 +67,17 @@ namespace SpaceDefence
 				AddToTypeCache(gameObject);
 			}
 			counter = new FPSCounter(content.Load<SpriteFont>("Font"));
+
+			// Load a 1x1 pixel texture used for debug drawing of the quadtree
+			try
+			{
+				_debugPixel = content.Load<Texture2D>("pixel");
+			}
+			catch
+			{
+				// If pixel not present, leave null - debug drawing will be skipped.
+				_debugPixel = null;
+			}
 		}
 
 		public void HandleInput(InputManager inputManager)
@@ -80,10 +92,6 @@ namespace SpaceDefence
 		{
 			var gameObjects = GetGameObjects();
 
-			_quadTree.Clear();
-			foreach (var obj in gameObjects)
-				if (obj.CollisionType != CollisionType.None)
-					_quadTree.Insert(obj);
 
 			int count = gameObjects.Count;
 			for (int i = 0; i < count; i++)
@@ -91,13 +99,13 @@ namespace SpaceDefence
 				var objA = gameObjects[i];
 				if (objA.CollisionType == CollisionType.None) continue;
 
-				_nearby.Clear();
-				_quadTree.Retrieve(_nearby, objA.collider.GetBoundingBox());
-
-				foreach (var objB in _nearby)
+				for (int j = i + 1; j < count; j++)
 				{
-					if (objB == objA) continue;
-					if ((objA.CollisionType & objB.CollisionType) == CollisionType.None) continue;
+					var objB = gameObjects[j];
+					if (objB.CollisionType == CollisionType.None) continue;
+
+					if ((objA.CollisionType & objB.CollisionType) != 0)
+						continue;
 
 					if (objA.CheckCollision(objB))
 					{
