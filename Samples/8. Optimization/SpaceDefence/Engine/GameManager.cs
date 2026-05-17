@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using SpaceDefence.Collision;
 using SpaceDefence.Engine;
 
 namespace SpaceDefence
@@ -16,7 +17,11 @@ namespace SpaceDefence
 		private List<GameObject> _toBeRemoved;
 		private List<GameObject> _toBeAdded;
 		private ContentManager _content;
-		public Matrix WorldMatrix { get; set; }
+
+        private readonly QuadTree _quadTree = new(0, new Rectangle(0, 0, 1920, 1080));
+        private readonly List<GameObject> _nearby = new(); // Reused every frame
+
+        public Matrix WorldMatrix { get; set; }
 
 		public Random RNG { get; private set; }
 		public InputManager InputManager { get; private set; }
@@ -30,13 +35,16 @@ namespace SpaceDefence
 				gameManager = new GameManager();
 			return gameManager;
 		}
+
 		public GameManager()
 		{
 			_gameObjects = new List<GameObject>();
 			_toBeRemoved = new List<GameObject>();
 			_toBeAdded = new List<GameObject>();
+
 			InputManager = new InputManager();
 			RNG = new Random();
+			
 			//WorldMatrix = Matrix.CreateScale(.3f);
 			WorldMatrix = Matrix.CreateScale(0.8f) * Matrix.CreateTranslation(0, -600, 0);
 		}
@@ -66,19 +74,24 @@ namespace SpaceDefence
 
         public void CheckCollision()
         {
-            int count = _gameObjects.Count; // Cache count, avoids repeated property lookup
+            _quadTree.Clear();
+            foreach (var obj in _gameObjects)
+                if (obj.CollisionType != CollisionType.None)
+                    _quadTree.Insert(obj);
+
+            int count = _gameObjects.Count;
             for (int i = 0; i < count; i++)
             {
                 var objA = _gameObjects[i];
-                if (objA.CollisionType == CollisionType.None) continue; // Early exit
+                if (objA.CollisionType == CollisionType.None) continue;
 
-                for (int j = i + 1; j < count; j++)
+                _nearby.Clear();
+                _quadTree.Retrieve(_nearby, objA.collider.GetBoundingBox());
+
+                foreach (var objB in _nearby)
                 {
-                    var objB = _gameObjects[j];
-
-                    // Bitwise AND: skip if the two objects share no collision layers
-                    if ((objA.CollisionType & objB.CollisionType) == CollisionType.None)
-                        continue;
+                    if (objB == objA) continue;
+                    if ((objA.CollisionType & objB.CollisionType) == CollisionType.None) continue;
 
                     if (objA.CheckCollision(objB))
                     {

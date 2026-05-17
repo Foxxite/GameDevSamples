@@ -52,7 +52,7 @@ namespace SpaceDefence
         /// <returns>true if the coordinates are within the circle.</returns>
         public override bool Contains(Vector2 coordinates)
         {
-            return (Center-coordinates).Length() < Radius;
+            return (Center - coordinates).LengthSquared() < Radius * Radius;
         }
 
         /// <summary>
