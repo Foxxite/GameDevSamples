@@ -24,6 +24,9 @@ namespace SpaceDefence
 		private Color teamColor;
 
 		private Effect recolorShader;
+		private Matrix cachedProjection;
+		private int cachedViewportWidth;
+		private int cachedViewportHeight;
 
 		/// <summary>
 		/// The player character
@@ -164,25 +167,30 @@ namespace SpaceDefence
 			recolorShader.Parameters["TeamColor"].SetValue(teamColor.ToVector4());
 			recolorShader.Parameters["HealthPercentage"].SetValue(health / 100f);
 
-			// Build the matrix SpriteBatch would normally inject automatically
 			Viewport viewport = GameManager.GetGameManager().GraphicsDevice.Viewport;
-			Matrix projection = Matrix.CreateOrthographicOffCenter(
-				0, viewport.Width,
-				viewport.Height, 0,
-				0, -1
-			);
-			recolorShader.Parameters["MatrixTransform"].SetValue(worldMatrix * projection);
+			if (cachedViewportWidth != viewport.Width || cachedViewportHeight != viewport.Height)
+			{
+				cachedViewportWidth = viewport.Width;
+				cachedViewportHeight = viewport.Height;
+				cachedProjection = Matrix.CreateOrthographicOffCenter(
+					0, viewport.Width,
+					viewport.Height, 0,
+					0, -1
+				);
+			}
 
-			// Don't pass worldMatrix here anymore - it's baked into MatrixTransform above
+			recolorShader.Parameters["MatrixTransform"].SetValue(worldMatrix * cachedProjection);
+
 			spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, recolorShader);
+
 			spriteBatch.Draw(ship_body, _rectangleCollider.shape, Color.White);
-			spriteBatch.End();
 
-			spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, recolorShader);
 			float aimAngle = LinePieceCollider.GetAngle(LinePieceCollider.GetDirection(GetPosition().Center, target));
 			Rectangle turretLocation = base_turret.Bounds;
 			turretLocation.Location = _rectangleCollider.shape.Center;
+
 			spriteBatch.Draw(base_turret, turretLocation, null, Color.White, aimAngle, turretLocation.Size.ToVector2() / 2f, SpriteEffects.None, 0);
+
 			spriteBatch.End();
 
 			spriteBatch.Begin(transformMatrix: worldMatrix);
