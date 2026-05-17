@@ -64,23 +64,32 @@ namespace SpaceDefence
 			}
 		}
 
-		public void CheckCollision()
-		{
-			// Checks once for every pair of 2 GameObjects if the collide.
-			for (int i = 0; i < _gameObjects.Count; i++)
-			{
-				for (int j = i + 1; j < _gameObjects.Count; j++)
-				{
-					if (_gameObjects[i].CollisionType != CollisionType.None && _gameObjects[j].CollisionType != CollisionType.None && _gameObjects[i].CheckCollision(_gameObjects[j]))
-					{
-						_gameObjects[i].OnCollision(_gameObjects[j]);
-						_gameObjects[j].OnCollision(_gameObjects[i]);
-					}
-				}
-			}
-		}
+        public void CheckCollision()
+        {
+            int count = _gameObjects.Count; // Cache count, avoids repeated property lookup
+            for (int i = 0; i < count; i++)
+            {
+                var objA = _gameObjects[i];
+                if (objA.CollisionType == CollisionType.None) continue; // Early exit
 
-		public void Update(GameTime gameTime)
+                for (int j = i + 1; j < count; j++)
+                {
+                    var objB = _gameObjects[j];
+
+                    // Bitwise AND: skip if the two objects share no collision layers
+                    if ((objA.CollisionType & objB.CollisionType) == CollisionType.None)
+                        continue;
+
+                    if (objA.CheckCollision(objB))
+                    {
+                        objA.OnCollision(objB);
+                        objB.OnCollision(objA);
+                    }
+                }
+            }
+        }
+
+        public void Update(GameTime gameTime)
 		{
 			InputManager.Update();
 			// Handle input

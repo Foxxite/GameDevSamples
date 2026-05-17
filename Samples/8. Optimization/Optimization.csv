@@ -1,3 +1,6 @@
 ﻿#;Number Of Ships;Worst FPS;Best FPS;% CPU Time Worst;Improvements;% CPU Time New;Maintainabilty Effects;Effects Functionality;Tested On
-1;30;60;60;21,65;Remove collision from particles by setting group to none;8,76;Extra check for collision group (none);No;Desktop
-2;30;60;60;14,8;Replace ReplaceAndFadeTexture in Ship with Shader;;;No;Desktop
+1;40;60;60;21,65;Remove collision from particles by setting group to none;8,76;Extra check for collision group (none);No;Desktop
+2;40;60;60;14,8;Replace ReplaceAndFadeTexture in Ship with Shader;Moved to GPU;Replaces calls to recalc texture to calls to shader params.;No;Desktop
+3;200;1;1;;Increase ship count to better see issues;;;;Desktop
+4;200;1;60;38,83;Fix issues with collision, did flags incorrectly in the first try, Also cache some expensive lookups and add early returns,;5,62;;No;Desktop
+3;800;1;1;;Increase ship count to better see issues;;;;Desktop

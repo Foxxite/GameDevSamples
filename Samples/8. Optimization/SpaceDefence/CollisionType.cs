@@ -6,10 +6,10 @@ namespace SpaceDefence
     [Flags]
     public enum CollisionType : int
     {
+        None = 0,
         Team1 = 1,
         Team2 = 2,
-        Teams = 3,
+        Teams = Team1 | Team2,
         Solid = 4,
-        None = 5,
     }
 }
