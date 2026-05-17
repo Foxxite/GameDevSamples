@@ -15,12 +15,10 @@ namespace SpaceDefence
 		public float AvoidanceRange = 100;
 		public float cooldown = 1;
 		public float health = 100;
+
 		private Texture2D ship_body;
-		private Color[] bodyData;
-		private Texture2D fadedBody;
 		private Texture2D base_turret;
-		private Color[] turretData;
-		private Texture2D fadedTurret;
+
 		private RectangleCollider _rectangleCollider;
 		private Point target;
 		private Color teamColor;
@@ -45,14 +43,7 @@ namespace SpaceDefence
 
 			// Setting up the texture data so we can apply our colouring later
 			ship_body = content.Load<Texture2D>("ship_body");
-			fadedBody = new Texture2D(ship_body.GraphicsDevice, ship_body.Width, ship_body.Height);
-			bodyData = new Color[ship_body.Width * ship_body.Height];
-			ship_body.GetData<Color>(bodyData);
-
 			base_turret = content.Load<Texture2D>("base_turret");
-			turretData = new Color[base_turret.Width * base_turret.Height];
-			base_turret.GetData<Color>(turretData);
-			fadedTurret = new Texture2D(base_turret.GraphicsDevice, base_turret.Width, base_turret.Height);
 
 			_rectangleCollider.shape.Size = ship_body.Bounds.Size;
 			_rectangleCollider.shape.Location -= new Point(ship_body.Width / 2, ship_body.Height / 2);
@@ -170,65 +161,33 @@ namespace SpaceDefence
 
 		public void Draw(GameTime gameTime, SpriteBatch spriteBatch, Matrix worldMatrix)
 		{
-			//ReplaceAndFadeTexture(bodyData, fadedBody, teamColor, health / 100);
-			//ReplaceAndFadeTexture(turretData, fadedTurret, teamColor, health / 100);
+			recolorShader.Parameters["TeamColor"].SetValue(teamColor.ToVector4());
+			recolorShader.Parameters["HealthPercentage"].SetValue(health / 100f);
 
-            recolorShader.Parameters["Texture"].SetValue(fadedBody);
-            recolorShader.Parameters["TeamColor"].SetValue(teamColor.ToVector4());
-            recolorShader.Parameters["HealthPercentage"].SetValue(1);
+			// Build the matrix SpriteBatch would normally inject automatically
+			Viewport viewport = GameManager.GetGameManager().GraphicsDevice.Viewport;
+			Matrix projection = Matrix.CreateOrthographicOffCenter(
+				0, viewport.Width,
+				viewport.Height, 0,
+				0, -1
+			);
+			recolorShader.Parameters["MatrixTransform"].SetValue(worldMatrix * projection);
 
-            spriteBatch.Begin(transformMatrix: worldMatrix, effect: recolorShader);
-			spriteBatch.Draw(fadedBody, _rectangleCollider.shape, Color.White);
+			// Don't pass worldMatrix here anymore - it's baked into MatrixTransform above
+			spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, recolorShader);
+			spriteBatch.Draw(ship_body, _rectangleCollider.shape, Color.White);
 			spriteBatch.End();
 
-
-            recolorShader.Parameters["Texture"].SetValue(fadedTurret);
-
-            spriteBatch.Begin(transformMatrix: worldMatrix, effect: recolorShader);
-            float aimAngle = LinePieceCollider.GetAngle(LinePieceCollider.GetDirection(GetPosition().Center, target));
-            Rectangle turretLocation = base_turret.Bounds;
-            turretLocation.Location = _rectangleCollider.shape.Center;
-            spriteBatch.Draw(fadedTurret, turretLocation, null, Color.White, aimAngle, turretLocation.Size.ToVector2() / 2f, SpriteEffects.None, 0);
+			spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, recolorShader);
+			float aimAngle = LinePieceCollider.GetAngle(LinePieceCollider.GetDirection(GetPosition().Center, target));
+			Rectangle turretLocation = base_turret.Bounds;
+			turretLocation.Location = _rectangleCollider.shape.Center;
+			spriteBatch.Draw(base_turret, turretLocation, null, Color.White, aimAngle, turretLocation.Size.ToVector2() / 2f, SpriteEffects.None, 0);
 			spriteBatch.End();
 
-            spriteBatch.Begin(transformMatrix: worldMatrix);
-            base.Draw(gameTime, spriteBatch);
+			spriteBatch.Begin(transformMatrix: worldMatrix);
+			base.Draw(gameTime, spriteBatch);
 			spriteBatch.End();
 		}
-
-		/// <summary>
-		/// Add team colors to the shipa and slowly fade them as they grow weaker.
-		/// </summary>
-		/// <param name="textureData">An array with the original ship texture data</param>
-		/// <param name="target">The buffer on the graphics card to write the data to</param>
-		/// <param name="color">The color to make the ship (alpha is ignored)</param>
-		/// <param name="percentage">The percentage of health left</param>
-		public static void ReplaceAndFadeTexture(Color[] textureData, Texture2D target, Color color, float percentage)
-		{
-
-			Color[] targetData = new Color[textureData.Length];
-
-			for (int i = 0; i < targetData.Length; i++)
-			{
-				if (textureData[i].R == textureData[i].B && textureData[i].G == 0 && textureData[i].R != 0)
-				{
-					// Read the Red chanel out as a float instead of a byte
-					float originalShade = textureData[i].ToVector4().X;
-
-					// Fade the pixel to black based on health percentage and shading
-					targetData[i].R = (byte)(color.R * percentage * originalShade);
-					targetData[i].G = (byte)(color.G * percentage * originalShade);
-					targetData[i].B = (byte)(color.B * percentage * originalShade);
-					targetData[i].A = textureData[i].A;
-				}
-				else
-				{
-					targetData[i] = textureData[i];
-				}
-
-			}
-			target.SetData(targetData);
-		}
-
 	}
 }

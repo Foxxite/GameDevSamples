@@ -22,6 +22,8 @@ namespace SpaceDefence
 		public InputManager InputManager { get; private set; }
 		public Game Game { get; private set; }
 
+		public GraphicsDevice GraphicsDevice => Game.GraphicsDevice;
+
 		public static GameManager GetGameManager()
 		{
 			if (gameManager == null)
