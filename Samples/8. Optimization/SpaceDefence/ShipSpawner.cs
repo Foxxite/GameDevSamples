@@ -8,6 +8,8 @@ namespace SpaceDefence
 		// The amount of ships that will be spawned. Starts at 4x5 = 20 per faction.
 		// Increase this as you go, make sure your FPS is less than ~10 before optimizing.
 		// I will keep increasing the number of columns until your game breaks during evaluation.
+		
+		// Student can run 6x6 before running into any issues before optimization.
 		public static int ShipRows = 20;
 		public static int ShipColumns = 20;
 
