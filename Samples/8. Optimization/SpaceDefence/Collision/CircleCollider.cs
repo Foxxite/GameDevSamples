@@ -55,7 +55,8 @@ namespace SpaceDefence
 		/// <returns>true if the coordinates are within the circle.</returns>
 		public override bool Contains(Vector2 coordinates)
 		{
-			return (Center - coordinates).Length() < Radius;
+			// Use squared distance to avoid the square root in Length()
+			return (Center - coordinates).LengthSquared() < (Radius * Radius);
 		}
 
 		/// <summary>
@@ -65,7 +66,9 @@ namespace SpaceDefence
 		/// <returns>true there is any overlap between the two Circles.</returns>
 		public override bool Intersects(CircleCollider other)
 		{
-			return (Center - other.Center).Length() < Radius + other.Radius;
+			// Compare squared distances to avoid computing square roots
+			float radiusSum = Radius + other.Radius;
+			return (Center - other.Center).LengthSquared() < (radiusSum * radiusSum);
 		}
 
 
@@ -74,34 +77,21 @@ namespace SpaceDefence
 		/// </summary>
 		/// <param name="other">The Rectangle to check for intersection.</param>
 		/// <returns>true there is any overlap between the Circle and the Rectangle.</returns>
+		/// 
+		/// Based on https://stackoverflow.com/a/402010
 		public override bool Intersects(RectangleCollider other)
 		{
-			// Check if the center of the circle is within the vertical or horizontal bounds of the rectangle, and if the circle overlaps with the rectangle in that direction.
-			bool withinVerticalBand = Center.Y < other.shape.Bottom && Center.Y > other.shape.Top;
-			bool withinHorizontalBand = Center.X < other.shape.Right && Center.X > other.shape.Left;
+			// Find the closest point to the circle within the rectangle
+			float closestX = Math.Clamp(Center.X, other.shape.Left, other.shape.Right);
+			float closestY = Math.Clamp(Center.Y, other.shape.Top, other.shape.Bottom);
 
-			if (withinVerticalBand && Center.X + Radius > other.shape.Left && Center.X - Radius < other.shape.Right)
-				return true;
-			if (withinHorizontalBand && Center.Y + Radius > other.shape.Top && Center.Y - Radius < other.shape.Bottom)
-				return true;
+			// Calculate the distance between the circle's center and this closest point
+			float distanceX = Center.X - closestX;
+			float distanceY = Center.Y - closestY;
 
-			// If the center of the circle is outside the bounds of the rectangle, check if any of the corners of the rectangle are within the circle.
-			Vector2[] corners = {
-				new(other.shape.Left, other.shape.Top),
-				new(other.shape.Right, other.shape.Top),
-				new(other.shape.Left, other.shape.Bottom),
-				new(other.shape.Right, other.shape.Bottom)
-			};
-
-			foreach (Vector2 corner in corners)
-			{
-				float distanceX = corner.X - Center.X;
-				float distanceY = corner.Y - Center.Y;
-				if (distanceX * distanceX + distanceY * distanceY < Radius * Radius)
-					return true;
-			}
-
-			return false;
+			// If the distance is less than the circle's radius, an intersection occurs
+			float distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+			return distanceSquared < (Radius * Radius);
 		}
 
 		/// <summary>
