@@ -17,6 +17,13 @@ namespace SpaceDefence
 
 		private readonly Dictionary<Type, List<GameObject>> _gameObjectsByType = new();
 
+		// Flat list kept in sync with _gameObjectsByType.
+		// Replaces the per-call SelectMany+ToList() allocation in GetGameObjects().
+		private readonly List<GameObject> _allGameObjects = new List<GameObject>();
+
+		// Broad-phase spatial hash; rebuilt every CheckCollision() call.
+		private readonly SpatialHash _spatialHash = new SpatialHash();
+
 		private List<GameObject> _toBeRemoved;
 		private List<GameObject> _toBeAdded;
 		private ContentManager _content;
@@ -60,11 +67,16 @@ namespace SpaceDefence
 
 		public void Load(ContentManager content)
 		{
+			// Snapshot what's in the flat list before clearing the type cache,
+			// then reload everything through AddToTypeCache so both stay in sync.
+			var snapshot = new List<GameObject>(_allGameObjects);
 			_gameObjectsByType.Clear();
-			foreach (GameObject gameObject in GetGameObjects())
+			_allGameObjects.Clear();
+
+			foreach (GameObject gameObject in snapshot)
 			{
 				gameObject.Load(content);
-				AddToTypeCache(gameObject);
+				AddToTypeCache(gameObject);   // re-populates both collections
 			}
 			counter = new FPSCounter(content.Load<SpriteFont>("Font"));
 
@@ -90,30 +102,30 @@ namespace SpaceDefence
 
 		public void CheckCollision()
 		{
-			var gameObjects = GetGameObjects();
-
-
-			int count = gameObjects.Count;
-			for (int i = 0; i < count; i++)
+			// ── Broad phase: build the spatial hash ──────────────────────────────
+			_spatialHash.Clear();
+			foreach (GameObject obj in _allGameObjects)
 			{
-				var objA = gameObjects[i];
-				if (objA.CollisionType == CollisionType.None) continue;
-
-				for (int j = i + 1; j < count; j++)
-				{
-					var objB = gameObjects[j];
-					if (objB.CollisionType == CollisionType.None) continue;
-
-					if ((objA.CollisionType & objB.CollisionType) != 0)
-						continue;
-
-					if (objA.CheckCollision(objB))
-					{
-						objA.OnCollision(objB);
-						objB.OnCollision(objA);
-					}
-				}
+				// Objects with no collision type or no collider can't collide.
+				if (obj.CollisionType == CollisionType.None) continue;
+				if (obj.collider == null) continue;
+				_spatialHash.Insert(obj);
 			}
+
+			// ── Narrow phase: check only spatially adjacent pairs ────────────────
+			_spatialHash.QueryPairs((objA, objB) =>
+			{
+				// Skip pairs that are on the same team / share a collision bit —
+				// same logic as the original brute-force check.
+				if ((objA.CollisionType & objB.CollisionType) != 0)
+					return;
+
+				if (objA.CheckCollision(objB))
+				{
+					objA.OnCollision(objB);
+					objB.OnCollision(objA);
+				}
+			});
 		}
 
 		public void Update(GameTime gameTime)
@@ -207,6 +219,7 @@ namespace SpaceDefence
 			}
 
 			typeObjects.Add(gameObject);
+			_allGameObjects.Add(gameObject);   // keep flat list in sync
 		}
 
 		private void RemoveFromTypeCache(GameObject gameObject)
@@ -218,6 +231,8 @@ namespace SpaceDefence
 			}
 
 			typeObjects.Remove(gameObject);
+			_allGameObjects.Remove(gameObject);   // keep flat list in sync
+
 			if (typeObjects.Count == 0)
 			{
 				_gameObjectsByType.Remove(type);
@@ -226,7 +241,8 @@ namespace SpaceDefence
 
 		public List<GameObject> GetGameObjects()
 		{
-			return _gameObjectsByType.Values.SelectMany(list => list).ToList();
+			// Returns the maintained flat list — no allocation, no LINQ.
+			return _allGameObjects;
 		}
 
 		public List<GameObject> GetGameObjectsByType(Type type)

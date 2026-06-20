@@ -7,6 +7,12 @@ namespace SpaceDefence
 {
 	public abstract class GameObject
 	{
+		// Monotonically increasing counter; gives every instance a unique stable Id.
+		// Used by SpatialHash.QueryPairs() to guarantee each (A,B) pair is reported
+		// exactly once without a HashSet<(int,int)> allocation.
+		private static int _nextId = 0;
+		public readonly int Id = System.Threading.Interlocked.Increment(ref _nextId);
+
 		public Collider collider { get; protected set; }
 		public CollisionType CollisionType;
 
