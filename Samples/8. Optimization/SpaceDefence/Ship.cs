@@ -29,6 +29,8 @@ namespace SpaceDefence
 		private int cachedViewportWidth;
 		private int cachedViewportHeight;
 
+		private GameManager manager => GameManager.GetGameManager();
+
 		/// <summary>
 		/// The player character
 		/// </summary>
@@ -75,7 +77,7 @@ namespace SpaceDefence
 				health -= 1;
 				if (health < 0)
 				{
-					GameManager.GetGameManager().RemoveGameObject(this);
+					manager.RemoveGameObject(this);
 					ParticleData data = new ParticleData
 					{
 						lifespan = 5,
@@ -97,7 +99,7 @@ namespace SpaceDefence
 			Ship nearest = FindNearestEnemy();
 			target = nearest == null ? Point.Zero : nearest.GetPosition().Center;
 
-			if ((target - GetPosition().Center).ToVector2().Length() < Range)
+			if ((target - GetPosition().Center).ToVector2().LengthSquared() < Range * Range)
 			{
 				if (cooldown < 0)
 				{
@@ -117,7 +119,7 @@ namespace SpaceDefence
 			cooldown = 0.5f;
 			Vector2 aimDirection = LinePieceCollider.GetDirection(GetPosition().Center, target);
 			Vector2 turretExit = _rectangleCollider.shape.Center.ToVector2() + aimDirection * base_turret.Height / 2f;
-			GameManager.GetGameManager().AddGameObject(new Bullet(turretExit, aimDirection, 150, CollisionType));
+			manager.AddGameObject(new Bullet(turretExit, aimDirection, 150, CollisionType));
 
 			return (-aimDirection * 20).ToPoint();
 		}
@@ -125,15 +127,17 @@ namespace SpaceDefence
 		public Vector2 AvoidObstacles()
 		{
 			Vector2 avoidance = Vector2.Zero;
-			foreach (GameObject other in GameManager.GetGameManager().GetGameObjectsByType(typeof(Bullet)))
+			var _cachedSqrtAvoidance = AvoidanceRange * AvoidanceRange;
+
+			foreach (GameObject other in manager.GetGameObjectsByType(typeof(Bullet)))
 			{
 				Vector2 difference = (GetPosition().Center - other.GetPosition().Center).ToVector2();
 
-				float distance = difference.Length();
-
-				if (distance < AvoidanceRange)
+				// Early exit with cheap squared check first
+				if (difference.LengthSquared() < _cachedSqrtAvoidance)
 				{
-					avoidance += (float)Math.Sqrt(AvoidanceRange) * speed * Vector2.Normalize(difference) / (float)Math.Sqrt(distance);
+					float distance = difference.Length(); // sqrt only when truly needed
+					avoidance += speed * Vector2.Normalize(difference) / (float)Math.Sqrt(distance);
 				}
 			}
 			return avoidance;
@@ -142,7 +146,9 @@ namespace SpaceDefence
 		public Ship FindNearestEnemy()
 		{
 			Ship nearest = null;
-			foreach (GameObject candidate in GameManager.GetGameManager().GetGameObjectsByType(typeof(Ship)))
+			Vector2 pos = GetPosition().Center.ToVector2();
+
+			foreach (GameObject candidate in manager.GetGameObjectsByType(typeof(Ship)))
 			{
 				Ship othership = (Ship)candidate;
 				if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
@@ -154,7 +160,6 @@ namespace SpaceDefence
 					continue;
 				}
 
-				Vector2 pos = GetPosition().Center.ToVector2();
 				Vector2 nearPos = nearest.GetPosition().Center.ToVector2();
 				Vector2 newPos = othership.GetPosition().Center.ToVector2();
 
@@ -177,7 +182,7 @@ namespace SpaceDefence
 			recolorShader.Parameters["TeamColor"].SetValue(teamColor.ToVector4());
 			recolorShader.Parameters["HealthPercentage"].SetValue(health / 100f);
 
-			Viewport viewport = GameManager.GetGameManager().GraphicsDevice.Viewport;
+			Viewport viewport = manager.GraphicsDevice.Viewport;
 			if (cachedViewportWidth != viewport.Width || cachedViewportHeight != viewport.Height)
 			{
 				cachedViewportWidth = viewport.Width;
