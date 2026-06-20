@@ -202,10 +202,6 @@ namespace SpaceDefence
 			spriteBatch.Draw(base_turret, turretLocation, null, Color.White, aimAngle, turretLocation.Size.ToVector2() / 2f, SpriteEffects.None, 0);
 
 			spriteBatch.End();
-
-			spriteBatch.Begin(transformMatrix: worldMatrix);
-			base.Draw(gameTime, spriteBatch);
-			spriteBatch.End();
 		}
 	}
 }
