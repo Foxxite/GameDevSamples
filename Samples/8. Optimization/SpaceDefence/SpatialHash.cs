@@ -114,45 +114,45 @@ namespace SpaceDefence
 			}
 		}
 
-        /// <summary>
-        /// Fills <paramref name="results"/> with every object whose cell overlaps
-        /// <paramref name="queryBounds"/>. The HashSet handles deduplication automatically
-        /// when an object spans multiple cells. The set is cleared before filling.
-        ///
-        /// Results are broad-phase candidates only — the caller must still do a
-        /// precise distance check to discard objects that are in a nearby cell but
-        /// outside the actual query radius.
-        /// </summary>
-        public void QueryRegion(Rectangle queryBounds, HashSet<GameObject> results)
-        {
-            results.Clear();
+		/// <summary>
+		/// Fills <paramref name="results"/> with every object whose cell overlaps
+		/// <paramref name="queryBounds"/>. The HashSet handles deduplication automatically
+		/// when an object spans multiple cells. The set is cleared before filling.
+		///
+		/// Results are broad-phase candidates only - the caller must still do a
+		/// precise distance check to discard objects that are in a nearby cell but
+		/// outside the actual query radius.
+		/// </summary>
+		public void QueryRegion(Rectangle queryBounds, HashSet<GameObject> results)
+		{
+			results.Clear();
 
-            int minCX = FloorDiv(queryBounds.Left, CellSize);
-            int minCY = FloorDiv(queryBounds.Top, CellSize);
-            int maxCX = FloorDiv(queryBounds.Right, CellSize);
-            int maxCY = FloorDiv(queryBounds.Bottom, CellSize);
+			int minCX = FloorDiv(queryBounds.Left, CellSize);
+			int minCY = FloorDiv(queryBounds.Top, CellSize);
+			int maxCX = FloorDiv(queryBounds.Right, CellSize);
+			int maxCY = FloorDiv(queryBounds.Bottom, CellSize);
 
-            for (int cx = minCX; cx <= maxCX; cx++)
-            {
-                for (int cy = minCY; cy <= maxCY; cy++)
-                {
-                    long key = PackKey(cx, cy);
-                    if (_cells.TryGetValue(key, out List<GameObject> cell))
-                    {
-                        foreach (GameObject obj in cell)
-                            results.Add(obj);   // HashSet ignores duplicates
-                    }
-                }
-            }
-        }
+			for (int cx = minCX; cx <= maxCX; cx++)
+			{
+				for (int cy = minCY; cy <= maxCY; cy++)
+				{
+					long key = PackKey(cx, cy);
+					if (_cells.TryGetValue(key, out List<GameObject> cell))
+					{
+						foreach (GameObject obj in cell)
+							results.Add(obj);   // HashSet ignores duplicates
+					}
+				}
+			}
+		}
 
 
-        /// <summary>
-        /// Integer floor division that handles negative coordinates correctly.
-        /// C# integer division truncates toward zero; this rounds toward −∞ instead,
-        /// so objects in negative world-space land in the right cell.
-        /// </summary>
-        private static int FloorDiv(int value, int divisor)
+		/// <summary>
+		/// Integer floor division that handles negative coordinates correctly.
+		/// C# integer division truncates toward zero; this rounds toward −∞ instead,
+		/// so objects in negative world-space land in the right cell.
+		/// </summary>
+		private static int FloorDiv(int value, int divisor)
 		{
 			int q = value / divisor;
 			// If the signs differ and there is a remainder, subtract one.

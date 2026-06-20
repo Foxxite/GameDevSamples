@@ -17,10 +17,13 @@ namespace SpaceDefence
 		public float cooldown = 1;
 		public float health = 100;
 
-        private float _sqrtAvoidanceRange;
-        private readonly HashSet<GameObject> _nearbyBullets = new HashSet<GameObject>();
+		private float _sqrtAvoidanceRange;
+		private readonly HashSet<GameObject> _nearbyBullets = new HashSet<GameObject>();
 
-        private Texture2D ship_body;
+		private double nextCheckForNearest = 0;
+		private Ship cachedNearestEnemy = null;
+
+		private Texture2D ship_body;
 		private Texture2D base_turret;
 		private Texture2D debug_pixel;
 
@@ -60,9 +63,9 @@ namespace SpaceDefence
 
 			recolorShader = content.Load<Effect>("RecolorShader");
 
-            _sqrtAvoidanceRange = MathF.Sqrt(AvoidanceRange);
+			_sqrtAvoidanceRange = MathF.Sqrt(AvoidanceRange);
 
-            base.Load(content);
+			base.Load(content);
 		}
 
 		public override void HandleInput(InputManager inputManager)
@@ -102,7 +105,7 @@ namespace SpaceDefence
 			base.Update(gameTime);
 			cooldown -= (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-			Ship nearest = FindNearestEnemy();
+			Ship nearest = FindNearestEnemy(gameTime);
 			target = nearest == null ? Point.Zero : nearest.GetPosition().Center;
 
 			if ((target - GetPosition().Center).ToVector2().LengthSquared() < Range * Range)
@@ -130,51 +133,57 @@ namespace SpaceDefence
 			return (-aimDirection * 20).ToPoint();
 		}
 
-        public Vector2 AvoidObstacles()
-        {
-            Vector2 pos = GetPosition().Center.ToVector2();
-
-            // Build a square query region that encloses the avoidance circle.
-            // With CellSize = 150 and AvoidanceRange = 100, this touches at most
-            // a 3×3 block of cells — regardless of how many bullets exist in the world.
-            int range = (int)AvoidanceRange;
-
-            Rectangle queryBounds = new Rectangle(
-                (int)pos.X - range,
-                (int)pos.Y - range,
-                range * 2,
-                range * 2);
-
-            manager.BulletSpatialHash.QueryRegion(queryBounds, _nearbyBullets);
-
-            Vector2 avoidance = Vector2.Zero;
-            float avoidRangeSq = AvoidanceRange * AvoidanceRange;
-
-            foreach (GameObject other in _nearbyBullets)
-            {
-
-                Vector2 difference = pos - other.GetPosition().Center.ToVector2();
-                float distSq = difference.LengthSquared();
-
-                // Cheap squared-distance rejection before computing any sqrt.
-                if (distSq >= avoidRangeSq) continue;
-
-                // We need dist^1.5 in the denominator:
-                //   original: Normalize(diff) / sqrt(dist)
-                //           = (diff / dist) / sqrt(dist)
-                //           = diff / (dist * sqrt(dist))
-                // Two sqrts total vs. three in the original (Length + Normalize + sqrt).
-                float dist = MathF.Sqrt(distSq);
-                float sqrtDist = MathF.Sqrt(dist);
-
-                avoidance += _sqrtAvoidanceRange * speed * difference / (dist * sqrtDist);
-            }
-
-            return avoidance;
-        }
-
-        public Ship FindNearestEnemy()
+		public Vector2 AvoidObstacles()
 		{
+			Vector2 pos = GetPosition().Center.ToVector2();
+
+			// Build a square query region that encloses the avoidance circle.
+			// With CellSize = 150 and AvoidanceRange = 100, this touches at most
+			// a 3×3 block of cells - regardless of how many bullets exist in the world.
+			int range = (int)AvoidanceRange;
+
+			Rectangle queryBounds = new Rectangle(
+				(int)pos.X - range,
+				(int)pos.Y - range,
+				range * 2,
+				range * 2);
+
+			manager.BulletSpatialHash.QueryRegion(queryBounds, _nearbyBullets);
+
+			Vector2 avoidance = Vector2.Zero;
+			float avoidRangeSq = AvoidanceRange * AvoidanceRange;
+
+			foreach (GameObject other in _nearbyBullets)
+			{
+
+				Vector2 difference = pos - other.GetPosition().Center.ToVector2();
+				float distSq = difference.LengthSquared();
+
+				// Cheap squared-distance rejection before computing any sqrt.
+				if (distSq >= avoidRangeSq) continue;
+
+				// We need dist^1.5 in the denominator:
+				//   original: Normalize(diff) / sqrt(dist)
+				//           = (diff / dist) / sqrt(dist)
+				//           = diff / (dist * sqrt(dist))
+				// Two sqrts total vs. three in the original (Length + Normalize + sqrt).
+				float dist = MathF.Sqrt(distSq);
+				float sqrtDist = MathF.Sqrt(dist);
+
+				avoidance += _sqrtAvoidanceRange * speed * difference / (dist * sqrtDist);
+			}
+
+			return avoidance;
+		}
+
+		public Ship FindNearestEnemy(GameTime gameTime)
+		{
+			if (cachedNearestEnemy != null && nextCheckForNearest > gameTime.ElapsedGameTime.TotalMilliseconds)
+			{
+				nextCheckForNearest -= gameTime.ElapsedGameTime.TotalMilliseconds;
+				return cachedNearestEnemy;
+			}
+
 			Ship nearest = null;
 			Vector2 pos = GetPosition().Center.ToVector2();
 
@@ -198,6 +207,9 @@ namespace SpaceDefence
 					nearest = othership;
 				}
 			}
+
+			cachedNearestEnemy = nearest;
+			nextCheckForNearest = gameTime.ElapsedGameTime.TotalMilliseconds + manager.RNG.Next(33, 66);
 
 			return nearest;
 		}
