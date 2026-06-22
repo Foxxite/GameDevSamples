@@ -19,8 +19,9 @@ namespace SpaceDefence
 
 		private float _sqrtAvoidanceRange;
 		private readonly HashSet<GameObject> _nearbyBullets = new HashSet<GameObject>();
+        private readonly HashSet<GameObject> _nearbyShips = new HashSet<GameObject>();
 
-		private double nextCheckForNearest = 0;
+        private double nextCheckForNearest = 0;
 		private Ship cachedNearestEnemy = null;
 
 		private Texture2D ship_body;
@@ -176,45 +177,73 @@ namespace SpaceDefence
 			return avoidance;
 		}
 
-		public Ship FindNearestEnemy(GameTime gameTime)
-		{
-			if (cachedNearestEnemy != null && nextCheckForNearest > gameTime.ElapsedGameTime.TotalMilliseconds)
-			{
-				nextCheckForNearest -= gameTime.ElapsedGameTime.TotalMilliseconds;
-				return cachedNearestEnemy;
-			}
+        public Ship FindNearestEnemy(GameTime gameTime)
+        {
+            if (cachedNearestEnemy != null && nextCheckForNearest > gameTime.ElapsedGameTime.TotalMilliseconds)
+            {
+                nextCheckForNearest -= gameTime.ElapsedGameTime.TotalMilliseconds;
+                return cachedNearestEnemy;
+            }
 
-			Ship nearest = null;
-			Vector2 pos = GetPosition().Center.ToVector2();
+            Ship nearest = null;
+            Vector2 pos = GetPosition().Center.ToVector2();
 
-			foreach (GameObject candidate in manager.GetGameObjectsByType(typeof(Ship)))
-			{
-				Ship othership = (Ship)candidate;
-				if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
-					continue;
+            // Query the ship spatial hash within [Range] radius first.
+            int rangeInt = (int)Range;
+            Rectangle queryBounds = new Rectangle(
+                (int)pos.X - rangeInt, (int)pos.Y - rangeInt,
+                rangeInt * 2, rangeInt * 2);
 
-				if (nearest == null)
-				{
-					nearest = othership;
-					continue;
-				}
+            manager.ShipSpatialHash.QueryRegion(queryBounds, _nearbyShips);
 
-				Vector2 nearPos = nearest.GetPosition().Center.ToVector2();
-				Vector2 newPos = othership.GetPosition().Center.ToVector2();
+            float bestDistSq = float.MaxValue;
 
-				if ((pos - nearPos).Length() > (pos - newPos).Length())
-				{
-					nearest = othership;
-				}
-			}
+            foreach (GameObject candidate in _nearbyShips)
+            {
+                Ship othership = (Ship)candidate;
+                if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
+                    continue;
 
-			cachedNearestEnemy = nearest;
-			nextCheckForNearest = gameTime.ElapsedGameTime.TotalMilliseconds + manager.RNG.Next(33, 66);
+                Vector2 newPos = othership.GetPosition().Center.ToVector2();
+                float distSq = (pos - newPos).LengthSquared();
 
-			return nearest;
-		}
+                // OPT-1: squared comparison - no sqrt needed.
+                if (distSq < bestDistSq)
+                {
+                    bestDistSq = distSq;
+                    nearest = othership;
+                }
+            }
 
-		public void Draw(GameTime gameTime, SpriteBatch spriteBatch, Matrix worldMatrix)
+            // Fallback: if no enemy was found within Range (e.g. early in the match
+            // when teams are far apart), do the original full list scan so ships
+            // still move toward each other. This keeps functionality identical.
+            if (nearest == null)
+            {
+                foreach (GameObject candidate in manager.GetGameObjectsByType(typeof(Ship)))
+                {
+                    Ship othership = (Ship)candidate;
+                    if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
+                        continue;
+
+                    Vector2 newPos = othership.GetPosition().Center.ToVector2();
+                    float distSq = (pos - newPos).LengthSquared();
+
+                    if (distSq < bestDistSq)
+                    {
+                        bestDistSq = distSq;
+                        nearest = othership;
+                    }
+                }
+            }
+
+            cachedNearestEnemy = nearest;
+            nextCheckForNearest = gameTime.ElapsedGameTime.TotalMilliseconds + manager.RNG.Next(33, 66);
+
+            return nearest;
+        }
+
+        public void Draw(GameTime gameTime, SpriteBatch spriteBatch, Matrix worldMatrix)
 		{
 			// Debug draw the collider
 			// spriteBatch.Begin(transformMatrix: worldMatrix);

@@ -32,7 +32,14 @@ namespace SpaceDefence
 		/// <summary>Read-only access to the bullet spatial hash for Ship.AvoidObstacles().</summary>
 		public SpatialHash BulletSpatialHash => _bulletSpatialHash;
 
-		private List<GameObject> _toBeRemoved;
+        // Ship-only spatial hash used by Ship.FindNearestEnemy().
+        // Rebuilt once per Update() so all ships see a consistent snapshot.
+        private readonly SpatialHash _shipSpatialHash = new SpatialHash();
+
+        /// <summary>Read-only access to the ship spatial hash for Ship.FindNearestEnemy().</summary>
+        public SpatialHash ShipSpatialHash => _shipSpatialHash;
+
+        private List<GameObject> _toBeRemoved;
 		private List<GameObject> _toBeAdded;
 		private ContentManager _content;
 
@@ -151,8 +158,18 @@ namespace SpaceDefence
 					_bulletSpatialHash.Insert(bullet);
 			}
 
-			// Update
-			foreach (GameObject gameObject in GetGameObjects())
+            // Rebuild the ship spatial hash once per frame so that every ship
+            // can do a cheap local query in FindNearestEnemy() instead of scanning
+            // the full enemy list.
+            _shipSpatialHash.Clear();
+            if (_gameObjectsByType.TryGetValue(typeof(Ship), out List<GameObject> shipList))
+            {
+                foreach (GameObject ship in shipList)
+                    _shipSpatialHash.Insert(ship);
+            }
+
+            // Update
+            foreach (GameObject gameObject in GetGameObjects())
 			{
 				gameObject.Update(gameTime);
 			}
