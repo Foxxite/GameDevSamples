@@ -13,7 +13,7 @@
 12;288;2;60;74.48;Optimize AvoidObstacles using Spatial Hash Grid;No longer shown in Profiler;A few more cached fields Body of the Avoid method has changed, doesn't effect anything outside the Ship.;No;Desktop
 13;800;2;56;89.16;Cache nearest enemy for N random miliseconds to spread search load over multiple frames.;1.33;None;Ships might be a bit slower swithcing to a closer enemy;Desktop
 14;1250;2;60;Not shown on Profiler;Ship spatial hash grid for FindNearestEnemy;Not shown on Profiler;New spacial hash grid to keep track of.;No;Desktop
-15;;;;;;;;;
+15;2738;10;50;Not shown on Profiler;Batch call ship draws instead of one by one;Not shown on Profiler;Slightly more coupling between GameManager and Ship. New teams need to be added to batch calls.;No;Desktop
 16;;;;;;;;;
 17;;;;;;;;;
 18;;;;;;;;;

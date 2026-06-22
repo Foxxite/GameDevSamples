@@ -194,15 +194,65 @@ namespace SpaceDefence
 
 		public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
 		{
-			if (GetGameObjectsByType(typeof(Ship)) is List<GameObject> ships)
-			{
-				foreach (Ship ship in ships)
-				{
-					ship.Draw(gameTime, spriteBatch, WorldMatrix);
-				}
-			}
+            // Batch all ship draw calls so we only call spriteBatch.Begin/End
+            // once per team (2 total) instead of once per ship (N total).
+            if (_gameObjectsByType.TryGetValue(typeof(Ship), out List<GameObject> ships) && ships.Count > 0)
+            {
+                Effect shader = ((Ship)ships[0]).ShaderEffect;
 
-			spriteBatch.Begin(transformMatrix: WorldMatrix);
+                // Compute projection once, identical for every ship in this frame.
+                Viewport viewport = GraphicsDevice.Viewport;
+                Matrix projection = Matrix.CreateOrthographicOffCenter(
+                    0, viewport.Width,
+                    viewport.Height, 0,
+                    0, -1);
+                shader.Parameters["MatrixTransform"].SetValue(WorldMatrix * projection);
+
+                // --- Team 1 pass ---
+                // Find the first Team1 ship to get the team colour, then batch-draw all.
+                Color team1Color = Color.Red;
+                for (int i = 0; i < ships.Count; i++)
+                {
+                    Ship s = (Ship)ships[i];
+                    if ((s.CollisionType & CollisionType.Team1) != 0)
+                    {
+                        team1Color = s.TeamColorValue;
+                        break;
+                    }
+                }
+                shader.Parameters["TeamColor"].SetValue(team1Color.ToVector4());
+                spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, null, null, null, shader);
+                foreach (GameObject obj in ships)
+                {
+                    Ship s = (Ship)obj;
+                    if ((s.CollisionType & CollisionType.Team1) != 0)
+                        s.DrawBatched(gameTime, spriteBatch);
+                }
+                spriteBatch.End();
+
+                // --- Team 2 pass ---
+                Color team2Color = Color.Blue;
+                for (int i = 0; i < ships.Count; i++)
+                {
+                    Ship s = (Ship)ships[i];
+                    if ((s.CollisionType & CollisionType.Team2) != 0)
+                    {
+                        team2Color = s.TeamColorValue;
+                        break;
+                    }
+                }
+                shader.Parameters["TeamColor"].SetValue(team2Color.ToVector4());
+                spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, null, null, null, shader);
+                foreach (GameObject obj in ships)
+                {
+                    Ship s = (Ship)obj;
+                    if ((s.CollisionType & CollisionType.Team2) != 0)
+                        s.DrawBatched(gameTime, spriteBatch);
+                }
+                spriteBatch.End();
+            }
+
+            spriteBatch.Begin(transformMatrix: WorldMatrix);
 			foreach (var typeBucket in _gameObjectsByType)
 			{
 				if (typeBucket.Key == typeof(Ship))

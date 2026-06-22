@@ -30,7 +30,7 @@ namespace SpaceDefence
 
 		private RectangleCollider _rectangleCollider;
 		private Point target;
-		private Color teamColor;
+        private Color teamColor;
 
 		private Effect recolorShader;
 		private Matrix cachedProjection;
@@ -39,11 +39,14 @@ namespace SpaceDefence
 
 		private GameManager manager => GameManager.GetGameManager();
 
-		/// <summary>
-		/// The player character
-		/// </summary>
-		/// <param name="Position">The ship's starting position</param>
-		public Ship(Point Position, CollisionType collisionType, Color teamColor)
+        public Color TeamColorValue => teamColor;
+        public Effect ShaderEffect => recolorShader;
+
+        /// <summary>
+        /// The player character
+        /// </summary>
+        /// <param name="Position">The ship's starting position</param>
+        public Ship(Point Position, CollisionType collisionType, Color teamColor)
 		{
 			_rectangleCollider = new RectangleCollider(new Rectangle(Position, Point.Zero));
 			SetCollider(_rectangleCollider);
@@ -243,41 +246,54 @@ namespace SpaceDefence
             return nearest;
         }
 
+        public void DrawBatched(GameTime gameTime, SpriteBatch spriteBatch)
+        {
+            recolorShader.Parameters["HealthPercentage"].SetValue(health / 100f);
+
+            spriteBatch.Draw(ship_body, _rectangleCollider.shape, Color.White);
+
+            float aimAngle = LinePieceCollider.GetAngle(LinePieceCollider.GetDirection(GetPosition().Center, target));
+            Rectangle turretLocation = base_turret.Bounds;
+            turretLocation.Location = _rectangleCollider.shape.Center;
+            spriteBatch.Draw(base_turret, turretLocation, null, Color.White, aimAngle,
+                turretLocation.Size.ToVector2() / 2f, SpriteEffects.None, 0);
+        }
+
         public void Draw(GameTime gameTime, SpriteBatch spriteBatch, Matrix worldMatrix)
 		{
-			// Debug draw the collider
-			// spriteBatch.Begin(transformMatrix: worldMatrix);
-			// spriteBatch.Draw(debug_pixel, _rectangleCollider.shape, Color.Yellow);
-			// spriteBatch.End();
+            // Debug draw the collider
+            // spriteBatch.Begin(transformMatrix: worldMatrix);
+            // spriteBatch.Draw(debug_pixel, _rectangleCollider.shape, Color.Yellow);
+            // spriteBatch.End();
 
-			recolorShader.Parameters["TeamColor"].SetValue(teamColor.ToVector4());
-			recolorShader.Parameters["HealthPercentage"].SetValue(health / 100f);
+            recolorShader.Parameters["TeamColor"].SetValue(teamColor.ToVector4());
+            recolorShader.Parameters["HealthPercentage"].SetValue(health / 100f);
 
-			Viewport viewport = manager.GraphicsDevice.Viewport;
-			if (cachedViewportWidth != viewport.Width || cachedViewportHeight != viewport.Height)
-			{
-				cachedViewportWidth = viewport.Width;
-				cachedViewportHeight = viewport.Height;
-				cachedProjection = Matrix.CreateOrthographicOffCenter(
-					0, viewport.Width,
-					viewport.Height, 0,
-					0, -1
-				);
-			}
+            Viewport viewport = manager.GraphicsDevice.Viewport;
+            if (cachedViewportWidth != viewport.Width || cachedViewportHeight != viewport.Height)
+            {
+                cachedViewportWidth = viewport.Width;
+                cachedViewportHeight = viewport.Height;
+                cachedProjection = Matrix.CreateOrthographicOffCenter(
+                    0, viewport.Width,
+                    viewport.Height, 0,
+                    0, -1
+                );
+            }
 
-			recolorShader.Parameters["MatrixTransform"].SetValue(worldMatrix * cachedProjection);
+            recolorShader.Parameters["MatrixTransform"].SetValue(worldMatrix * cachedProjection);
 
-			spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, recolorShader);
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, recolorShader);
 
-			spriteBatch.Draw(ship_body, _rectangleCollider.shape, Color.White);
+            spriteBatch.Draw(ship_body, _rectangleCollider.shape, Color.White);
 
-			float aimAngle = LinePieceCollider.GetAngle(LinePieceCollider.GetDirection(GetPosition().Center, target));
-			Rectangle turretLocation = base_turret.Bounds;
-			turretLocation.Location = _rectangleCollider.shape.Center;
+            float aimAngle = LinePieceCollider.GetAngle(LinePieceCollider.GetDirection(GetPosition().Center, target));
+            Rectangle turretLocation = base_turret.Bounds;
+            turretLocation.Location = _rectangleCollider.shape.Center;
 
-			spriteBatch.Draw(base_turret, turretLocation, null, Color.White, aimAngle, turretLocation.Size.ToVector2() / 2f, SpriteEffects.None, 0);
+            spriteBatch.Draw(base_turret, turretLocation, null, Color.White, aimAngle, turretLocation.Size.ToVector2() / 2f, SpriteEffects.None, 0);
 
-			spriteBatch.End();
-		}
+            spriteBatch.End();
+        }
 	}
 }
