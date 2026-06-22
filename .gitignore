@@ -400,3 +400,7 @@ FodyWeavers.xsd
 *.sln.iml
 
 *.zip
+
+Samples/8. Optimization/5. Optimization.md
+
+*.diagsession
