@@ -213,7 +213,6 @@ namespace SpaceDefence
                 Vector2 newPos = othership.GetPosition().Center.ToVector2();
                 float distSq = (pos - newPos).LengthSquared();
 
-                // OPT-1: squared comparison - no sqrt needed.
                 if (distSq < bestDistSq)
                 {
                     bestDistSq = distSq;
@@ -224,6 +223,7 @@ namespace SpaceDefence
             // Fallback: if no enemy was found within Range (e.g. early in the match
             // when teams are far apart), do the original full list scan so ships
             // still move toward each other. This keeps functionality identical.
+            bool usedFallback = (nearest == null);
             if (nearest == null)
             {
 				foreach (GameObject candidate in manager.GetGameObjectsByType<Ship>())
@@ -244,8 +244,9 @@ namespace SpaceDefence
             }
 
             cachedNearestEnemy = nearest;
-            nextCheckForNearest = gameTime.ElapsedGameTime.TotalMilliseconds + manager.RNG.Next(33, 66);
 
+            double cacheMs = usedFallback ? manager.RNG.Next(500, 1000) : manager.RNG.Next(33, 66);
+            nextCheckForNearest = gameTime.ElapsedGameTime.TotalMilliseconds + cacheMs;
             return nearest;
         }
 
