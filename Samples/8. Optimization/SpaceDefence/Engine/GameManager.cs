@@ -246,8 +246,9 @@ namespace SpaceDefence
 
 		public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
 		{
-            // Batch all ship draw calls so we only call spriteBatch.Begin/End
-            // once per team (2 total) instead of once per ship (N total).
+            // ---------------------------------------------------------------
+            // Pass 1: Ships
+            // ---------------------------------------------------------------
             if (_gameObjectsByType.TryGetValue(typeof(Ship), out List<GameObject> ships) && ships.Count > 0)
             {
                 Effect shader = ((Ship)ships[0]).ShaderEffect;
@@ -304,20 +305,37 @@ namespace SpaceDefence
                 spriteBatch.End();
             }
 
+            // ---------------------------------------------------------------
+            // Pass 2: GPU particles: raw GraphicsDevice draw, no SpriteBatch.
+            // Drawn here so we never need to End/Begin a SpriteBatch mid-loop.
+            // ---------------------------------------------------------------
+            if (_gameObjectsByType.TryGetValue(typeof(GpuParticleEmitter),
+                    out List<GameObject> emitters))
+            {
+                foreach (GameObject obj in emitters)
+                    ((GpuParticleEmitter)obj).DrawGpu(GraphicsDevice, WorldMatrix);
+            }
+
+            // ---------------------------------------------------------------
+            // Pass 3: Everything else (bullets, etc.)
+            // ---------------------------------------------------------------
             spriteBatch.Begin(transformMatrix: WorldMatrix);
-			foreach (var typeBucket in _gameObjectsByType)
-			{
-				if (typeBucket.Key == typeof(Ship))
-					continue;
+            foreach (var bucket in _gameObjectsByType)
+            {
+                if (bucket.Key == typeof(Ship)) continue;
+                if (bucket.Key == typeof(GpuParticleEmitter)) continue;
 
-				foreach (GameObject gameObject in typeBucket.Value)
-				{
-					gameObject.Draw(gameTime, spriteBatch);
-				}
-			}
-			spriteBatch.End();
+                foreach (GameObject go in bucket.Value)
+                {
+                    go.Draw(gameTime, spriteBatch);
+                }
+            }
+            spriteBatch.End();
 
-			spriteBatch.Begin();
+            // ---------------------------------------------------------------
+            // Pass 4: HUD (screen space).
+            // ---------------------------------------------------------------
+            spriteBatch.Begin();
 			counter.Draw(gameTime, spriteBatch);
 			spriteBatch.End();
 		}

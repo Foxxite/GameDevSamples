@@ -74,6 +74,12 @@
 /processorParam:TextureFormat=Compressed
 /build:Font.spritefont
 
+#begin GpuParticle.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:GpuParticle.fx
+
 #begin laser_turret.png
 /importer:TextureImporter
 /processor:TextureProcessor

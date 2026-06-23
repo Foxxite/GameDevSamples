@@ -10,9 +10,11 @@ namespace SpaceDefence
 		// I will keep increasing the number of columns until your game breaks during evaluation.
 
 		// Student can run 6x6 before running into any issues before optimization.
-		public static int ShipRows = 37;
-		public static int ShipColumns = 37;
+		//public static int ShipRows = 4;
+		//public static int ShipColumns = 5;
 
+		public static int ShipRows = 40;
+		public static int ShipColumns = 40;
 
 		public static int XSpacing = 70;
 		public static int YSpacing = 200;

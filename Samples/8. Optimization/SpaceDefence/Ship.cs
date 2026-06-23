@@ -91,15 +91,16 @@ namespace SpaceDefence
 				if (health < 0)
 				{
 					manager.RemoveGameObject(this);
-					ParticleData data = new ParticleData
-					{
-						lifespan = 5,
-						particleCount = 40,
-						maxScale = .6f,
-						minScale = .2f
-					};
-					new ParticleEmitter(GetPosition().Center.ToVector2(), data).Emit();
-				}
+                    ParticleData data = new ParticleData
+                    {
+                        lifespan = 5,
+                        particleCount = 40,
+                        maxScale = .6f,
+                        minScale = .2f
+                    };
+                    manager.AddGameObject(new GpuParticleEmitter(
+                        GetPosition().Center.ToVector2(), data));
+                }
 			}
 		}
 
