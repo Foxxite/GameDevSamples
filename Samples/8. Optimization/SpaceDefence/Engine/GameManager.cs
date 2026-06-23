@@ -55,7 +55,11 @@ namespace SpaceDefence
 
 		public GraphicsDevice GraphicsDevice => Game.GraphicsDevice;
 
-		public static GameManager GetGameManager()
+        private const int BulletPoolCap = 4000;
+        private readonly Bullet[] _bulletPool = new Bullet[BulletPoolCap];
+        private int _bulletPoolNext = 0;
+
+        public static GameManager GetGameManager()
 		{
 			if (gameManager == null)
 				gameManager = new GameManager();
@@ -72,7 +76,11 @@ namespace SpaceDefence
 
 			//WorldMatrix = Matrix.CreateScale(.3f);
 			WorldMatrix = Matrix.CreateScale(0.8f) * Matrix.CreateTranslation(0, -600, 0);
-		}
+
+            // Pre-allocate all bullet slots up front so the ring never heap-allocates.
+            for (int i = 0; i < BulletPoolCap; i++)
+                _bulletPool[i] = new Bullet();
+        }
 
 		public void Initialize(ContentManager content, Game game)
 		{
@@ -107,7 +115,51 @@ namespace SpaceDefence
 			}
 		}
 
-		public void HandleInput(InputManager inputManager)
+        /// <summary>Rent a bullet from the pool (or reset the oldest one).</summary>
+        /// <summary>
+        /// Rent a bullet from the fixed-size ring buffer and register it with the
+        /// game.  The caller must NOT call AddGameObject separately.
+        ///
+        /// If the ring has wrapped (> 2000 simultaneous bullets) the oldest
+        /// in-flight bullet is reset to the new parameters.
+        /// </summary>
+        public Bullet RentAndAddBullet(Vector2 location, Vector2 direction,
+                                       float speed, CollisionType collisionType)
+        {
+            Bullet b = _bulletPool[_bulletPoolNext];
+            _bulletPoolNext = (_bulletPoolNext + 1) % BulletPoolCap;
+
+            // A bullet that was returned this frame is in _toBeRemoved (still in
+            // _allGameObjects) but has IsActive = false.  Detect both cases:
+            bool pendingRemoval = _toBeRemoved.Contains(b);
+            bool inGame = b.IsActive || pendingRemoval;
+
+            if (inGame)
+            {
+                // Bullet is still registered: reset in-place and cancel any
+                // pending deferred removal so it doesn't get evicted at frame end.
+                if (pendingRemoval) _toBeRemoved.Remove(b);
+                b.Reset(location, direction, speed, collisionType);
+                b.IsActive = true;
+                // b is already in _allGameObjects - no AddGameObject needed.
+            }
+            else
+            {
+                // Slot is genuinely free: reset and queue for deferred add.
+                _toBeRemoved.Remove(b); // safety: cancel any stale entry
+                b.Reset(location, direction, speed, collisionType);
+                b.IsActive = true;
+                AddGameObject(b);
+            }
+
+            return b;
+        }
+
+        /// <summary>Mark a bullet as available for reuse on the next ring wrap.</summary>
+        public void ReturnBullet(Bullet b) => b.IsActive = false;
+
+
+        public void HandleInput(InputManager inputManager)
 		{
 			foreach (GameObject gameObject in GetGameObjects())
 			{
@@ -328,20 +380,20 @@ namespace SpaceDefence
 			return _allGameObjects;
 		}
 
-		public List<GameObject> GetGameObjectsByType(Type type)
-		{
-			if (_gameObjectsByType.TryGetValue(type, out List<GameObject> typeObjects))
-			{
-				return typeObjects;
-			}
+        public List<T> GetGameObjectsByType<T>() where T : GameObject
+        {
+            if (_gameObjectsByType.TryGetValue(typeof(T), out List<GameObject> typeObjects))
+            {
+                return typeObjects.Cast<T>().ToList();
+            }
 
-			return new List<GameObject>();
-		}
+            return new List<T>();
+        }
 
-		/// <summary>
-		/// Get a random location on the screen.
-		/// </summary>
-		public Vector2 RandomScreenLocation()
+        /// <summary>
+        /// Get a random location on the screen.
+        /// </summary>
+        public Vector2 RandomScreenLocation()
 		{
 			return new Vector2(
 				RNG.Next(0, Game.GraphicsDevice.Viewport.Width),

@@ -38,7 +38,7 @@ namespace SpaceDefence.Engine
 			{
 				worstFPS = currentFPS;
 			}
-			string fpsCounter = $"FPS: {currentFPS.ToString("N1")} \nWorst: {worstFPS.ToString("N1")} \nShips: {GameManager.GetGameManager().GetGameObjectsByType(typeof(Ship)).Count()} \nBullets: {GameManager.GetGameManager().GetGameObjectsByType(typeof(Bullet)).Count()}";
+			string fpsCounter = $"FPS: {currentFPS.ToString("N1")} \nWorst: {worstFPS.ToString("N1")} \nShips: {GameManager.GetGameManager().GetGameObjectsByType<Ship>().Count()} \nBullets: {GameManager.GetGameManager().GetGameObjectsByType<Bullet>().Count()}";
 			spriteBatch.DrawString(font, fpsCounter, new Vector2(25, 25), Color.White);
 		}
 	}

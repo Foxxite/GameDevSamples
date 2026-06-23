@@ -127,17 +127,19 @@ namespace SpaceDefence
 			_rectangleCollider.shape.Location += (AvoidObstacles() * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
 		}
 
-		public Point Shoot()
-		{
-			cooldown = 0.5f;
-			Vector2 aimDirection = LinePieceCollider.GetDirection(GetPosition().Center, target);
-			Vector2 turretExit = _rectangleCollider.shape.Center.ToVector2() + aimDirection * base_turret.Height / 2f;
-			manager.AddGameObject(new Bullet(turretExit, aimDirection, 150, CollisionType));
+        public Point Shoot()
+        {
+            cooldown = 0.5f;
+            Vector2 aimDirection = LinePieceCollider.GetDirection(GetPosition().Center, target);
+            Vector2 turretExit = _rectangleCollider.shape.Center.ToVector2() + aimDirection * base_turret.Height / 2f;
 
-			return (-aimDirection * 20).ToPoint();
-		}
+            // Rent a bullet from the pool. 
+            manager.RentAndAddBullet(turretExit, aimDirection, 150, CollisionType);
 
-		public Vector2 AvoidObstacles()
+            return (-aimDirection * 20).ToPoint();
+        }
+
+        public Vector2 AvoidObstacles()
 		{
 			Vector2 pos = GetPosition().Center.ToVector2();
 
@@ -223,7 +225,7 @@ namespace SpaceDefence
             // still move toward each other. This keeps functionality identical.
             if (nearest == null)
             {
-                foreach (GameObject candidate in manager.GetGameObjectsByType(typeof(Ship)))
+				foreach (GameObject candidate in manager.GetGameObjectsByType<Ship>())
                 {
                     Ship othership = (Ship)candidate;
                     if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
