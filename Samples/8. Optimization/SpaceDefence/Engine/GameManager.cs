@@ -55,7 +55,7 @@ namespace SpaceDefence
 
 		public GraphicsDevice GraphicsDevice => Game.GraphicsDevice;
 
-        private const int BulletPoolCap = 4000;
+        private const int BulletPoolCap = 8000;
         private readonly Bullet[] _bulletPool = new Bullet[BulletPoolCap];
         private int _bulletPoolNext = 0;
 
@@ -247,6 +247,27 @@ namespace SpaceDefence
 		public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
 		{
             // ---------------------------------------------------------------
+            // Viewport culling.
+            //
+            // Compute the visible region in WORLD space once per frame by
+            // inverting WorldMatrix and transforming the four screen corners.
+            // Every draw loop below skips objects whose bounding box does not
+            // intersect this rectangle.
+            // ---------------------------------------------------------------
+            Viewport vp = GraphicsDevice.Viewport;
+            Matrix invWorld = Matrix.Invert(WorldMatrix);
+
+            Vector2 worldTL = Vector2.Transform(Vector2.Zero, invWorld);
+            Vector2 worldBR = Vector2.Transform(new Vector2(vp.Width, vp.Height), invWorld);
+
+            Rectangle worldView = new Rectangle(
+                (int)Math.Min(worldTL.X, worldBR.X),
+                (int)Math.Min(worldTL.Y, worldBR.Y),
+                (int)Math.Abs(worldBR.X - worldTL.X),
+                (int)Math.Abs(worldBR.Y - worldTL.Y));
+
+
+            // ---------------------------------------------------------------
             // Pass 1: Ships
             // ---------------------------------------------------------------
             if (_gameObjectsByType.TryGetValue(typeof(Ship), out List<GameObject> ships) && ships.Count > 0)
@@ -254,55 +275,39 @@ namespace SpaceDefence
                 Effect shader = ((Ship)ships[0]).ShaderEffect;
 
                 // Compute projection once, identical for every ship in this frame.
-                Viewport viewport = GraphicsDevice.Viewport;
-                Matrix projection = Matrix.CreateOrthographicOffCenter(
-                    0, viewport.Width,
-                    viewport.Height, 0,
-                    0, -1);
-                shader.Parameters["MatrixTransform"].SetValue(WorldMatrix * projection);
+                Matrix proj = Matrix.CreateOrthographicOffCenter(0, vp.Width, vp.Height, 0, 0, -1);
+                shader.Parameters["MatrixTransform"].SetValue(WorldMatrix * proj);
 
                 // --- Team 1 pass ---
                 // Find the first Team1 ship to get the team colour, then batch-draw all.
-                Color team1Color = Color.Red;
-                for (int i = 0; i < ships.Count; i++)
-                {
-                    Ship s = (Ship)ships[i];
-                    if ((s.CollisionType & CollisionType.Team1) != 0)
-                    {
-                        team1Color = s.TeamColorValue;
-                        break;
-                    }
-                }
-                shader.Parameters["TeamColor"].SetValue(team1Color.ToVector4());
-                spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, null, null, null, shader);
+                Color team1 = FindTeamColor(ships, CollisionType.Team1);
+                shader.Parameters["TeamColor"].SetValue(team1.ToVector4());
+                spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend,
+                                  null, null, null, shader);
                 foreach (GameObject obj in ships)
                 {
                     Ship s = (Ship)obj;
-                    if ((s.CollisionType & CollisionType.Team1) != 0)
+                    if ((s.CollisionType & CollisionType.Team1) != 0
+                        && worldView.Intersects(s.GetPosition()))   // OPT-6
                         s.DrawBatched(gameTime, spriteBatch);
                 }
                 spriteBatch.End();
 
+
                 // --- Team 2 pass ---
-                Color team2Color = Color.Blue;
-                for (int i = 0; i < ships.Count; i++)
-                {
-                    Ship s = (Ship)ships[i];
-                    if ((s.CollisionType & CollisionType.Team2) != 0)
-                    {
-                        team2Color = s.TeamColorValue;
-                        break;
-                    }
-                }
-                shader.Parameters["TeamColor"].SetValue(team2Color.ToVector4());
-                spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, null, null, null, shader);
+                Color team2 = FindTeamColor(ships, CollisionType.Team2);
+                shader.Parameters["TeamColor"].SetValue(team2.ToVector4());
+                spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend,
+                                  null, null, null, shader);
                 foreach (GameObject obj in ships)
                 {
                     Ship s = (Ship)obj;
-                    if ((s.CollisionType & CollisionType.Team2) != 0)
+                    if ((s.CollisionType & CollisionType.Team2) != 0
+                        && worldView.Intersects(s.GetPosition()))   // OPT-6
                         s.DrawBatched(gameTime, spriteBatch);
                 }
                 spriteBatch.End();
+
             }
 
             // ---------------------------------------------------------------
@@ -327,7 +332,8 @@ namespace SpaceDefence
 
                 foreach (GameObject go in bucket.Value)
                 {
-                    go.Draw(gameTime, spriteBatch);
+                    if (worldView.Intersects(go.GetPosition()))
+                        go.Draw(gameTime, spriteBatch);
                 }
             }
             spriteBatch.End();
@@ -340,13 +346,24 @@ namespace SpaceDefence
 			spriteBatch.End();
 		}
 
-		/// <summary>
-		/// Add a new GameObject to the GameManager. 
-		/// The GameObject will be added at the start of the next Update step. 
-		/// Once it is added, the GameManager will ensure all steps of the game loop will be called on the object automatically. 
-		/// </summary>
-		/// <param name="gameObject"> The GameObject to add. </param>
-		public void AddGameObject(GameObject gameObject)
+        private static Color FindTeamColor(List<GameObject> ships, CollisionType team)
+        {
+            foreach (GameObject obj in ships)
+            {
+                Ship s = (Ship)obj;
+                if ((s.CollisionType & team) != 0) return s.TeamColorValue;
+            }
+            return Color.White;
+        }
+
+
+        /// <summary>
+        /// Add a new GameObject to the GameManager. 
+        /// The GameObject will be added at the start of the next Update step. 
+        /// Once it is added, the GameManager will ensure all steps of the game loop will be called on the object automatically. 
+        /// </summary>
+        /// <param name="gameObject"> The GameObject to add. </param>
+        public void AddGameObject(GameObject gameObject)
 		{
 			_toBeAdded.Add(gameObject);
 		}
