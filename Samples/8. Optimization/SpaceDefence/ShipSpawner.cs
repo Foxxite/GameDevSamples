@@ -19,6 +19,7 @@ namespace SpaceDefence
         public static int XSpacing = 100;
         public static int YSpacing = 100;
 
+        // Using the spawn code Jasper uses. It shows performance issues better.
         public static void Spawn(GameManager manager)
         {
             Random r = new Random(7);

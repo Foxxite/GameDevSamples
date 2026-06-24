@@ -13,10 +13,6 @@ namespace SpaceDefence
         public float bulletSize = 4;
         public float LifeTime = 3;
 
-        // Tracks whether this pool slot is currently in-flight.
-        // Set to true by GameManager.RentAndAddBullet(), false by ReturnBullet().
-        public bool IsActive = false;
-
         // Pre-allocated constructor used by GameManager to fill the bullet pool.
         // All pool slots are created at startup; Reset() initialises them for use.
         public Bullet()

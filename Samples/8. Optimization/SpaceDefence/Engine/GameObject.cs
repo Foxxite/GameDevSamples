@@ -16,6 +16,10 @@ namespace SpaceDefence
         public int AllObjectsIndex = -1;   // maintained by GameManager
         public int TypeCacheIndex = -1;
 
+        // Tracks whether this pool slot is currently in-flight.
+        // Set to true by GameManager.RentAndAddBullet(), false by ReturnBullet().
+        public bool IsActive = false;
+
         public Collider collider { get; protected set; }
 		public CollisionType CollisionType;
 

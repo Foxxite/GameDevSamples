@@ -17,8 +17,8 @@
 16;2738;2;10;Not shown on Profiler;Object pooling for bullets. Capped to 4k bullets at a time.;Not shown on Profiler;Slightly more coupling between GameManager, Bullet and Ship. GameManager holds the bullet pool.;Oldest bullet is reset if there are no bullets in the pool. With a lot of ships, they might not be able to hit eachother.;Desktop;;;;;;;
 17;2738;10;60;Not shown on Profiler;Replace particles with a shader.;Not shown on Profiler;Particles are now controlled via shader params.;No;Desktop;;;;;;;
 18;3200;2;60;Not shown on Profiler;ViewSpace Culling. Don't render that we can't see.;Not shown on Profiler;None;No;Desktop;;;;;;;
-19;;;;;;;;;;;;;;;;
-20;;;;;;;;;;;;;;;;
+19;3200;60;2;Not shown on Profiler;Use Jasper's spawn code for ships, shows issues better.;Not shown on Profiler;None;No;Desktop;;;;;;;
+20;3200;2;60;45.92;Parallel ship updates;No longer shown in Profiler;_toBeAdded/_toBeRemoved become ConcurrentQueue instead of List. API is unchanged.;No;Desktop;;;;;;;
 21;;;;;;;;;;;;;;;;
 22;;;;;;;;;;;;;;;;
 23;;;;;;;;;;;;;;;;
