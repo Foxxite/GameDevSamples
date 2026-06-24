@@ -381,35 +381,69 @@ namespace SpaceDefence
 
 		private void AddToTypeCache(GameObject gameObject)
 		{
-			Type type = gameObject.GetType();
-			if (!_gameObjectsByType.TryGetValue(type, out List<GameObject> typeObjects))
-			{
-				typeObjects = new List<GameObject>();
-				_gameObjectsByType[type] = typeObjects;
-			}
+            Type type = gameObject.GetType();
+            if (!_gameObjectsByType.TryGetValue(type, out var list))
+            { 
+                list = new List<GameObject>(); 
+                _gameObjectsByType[type] = list; 
+            }
 
-			typeObjects.Add(gameObject);
-			_allGameObjects.Add(gameObject);   // keep flat list in sync
-		}
+            gameObject.TypeCacheIndex = list.Count;
+            list.Add(gameObject);
 
-		private void RemoveFromTypeCache(GameObject gameObject)
-		{
-			Type type = gameObject.GetType();
-			if (!_gameObjectsByType.TryGetValue(type, out List<GameObject> typeObjects))
-			{
-				return;
-			}
+            gameObject.AllObjectsIndex = _allGameObjects.Count;
+            _allGameObjects.Add(gameObject); // keep flat list in sync
+        }
 
-			typeObjects.Remove(gameObject);
-			_allGameObjects.Remove(gameObject);   // keep flat list in sync
+        private void RemoveFromTypeCache(GameObject go)
+        {
+            Type type = go.GetType();
+            if (!_gameObjectsByType.TryGetValue(type, out var list)) return;
 
-			if (typeObjects.Count == 0)
-			{
-				_gameObjectsByType.Remove(type);
-			}
-		}
+            int ti = go.TypeCacheIndex;
+            int lastTi = list.Count - 1;
 
-		public List<GameObject> GetGameObjects()
+            // Guard: index must be valid AND must actually point to this object.
+            // Stale indices happen with pool bullets that were never registered here.
+            if (ti >= 0 && ti <= lastTi && list[ti] == go)
+            {
+                if (ti != lastTi)
+                {
+                    list[ti] = list[lastTi];
+                    list[ti].TypeCacheIndex = ti;
+                }
+                list.RemoveAt(lastTi);
+            }
+            else
+            {
+                list.Remove(go);   // safe O(n) fallback, should almost never hit
+            }
+
+            go.TypeCacheIndex = -1;
+            if (list.Count == 0) _gameObjectsByType.Remove(type);
+
+            // ── Flat list ────────────────────────────────────────────────────────
+            int ai = go.AllObjectsIndex;
+            int lastAi = _allGameObjects.Count - 1;
+
+            if (ai >= 0 && ai <= lastAi && _allGameObjects[ai] == go)
+            {
+                if (ai != lastAi)
+                {
+                    _allGameObjects[ai] = _allGameObjects[lastAi];
+                    _allGameObjects[ai].AllObjectsIndex = ai;
+                }
+                _allGameObjects.RemoveAt(lastAi);
+            }
+            else
+            {
+                _allGameObjects.Remove(go);   // safe fallback
+            }
+
+            go.AllObjectsIndex = -1;
+        }
+
+        public List<GameObject> GetGameObjects()
 		{
 			// Returns the maintained flat list - no allocation, no LINQ.
 			return _allGameObjects;

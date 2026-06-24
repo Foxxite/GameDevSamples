@@ -16,25 +16,25 @@ namespace SpaceDefence
 		public static int ShipRows = 40;
 		public static int ShipColumns = 40;
 
-		public static int XSpacing = 70;
-		public static int YSpacing = 200;
+        public static int XSpacing = 100;
+        public static int YSpacing = 100;
 
-		public static void Spawn(GameManager manager)
-		{
-			Random r = new Random(7);
-			// Place the player at the center of the screen
-			for (int i = 0; i < ShipRows; i++)
-			{
-				for (int j = 0; j < ShipColumns; j++)
-				{
-					Point team1Pos = new Point(r.Next(20) + 200 + j * XSpacing * ShipRows + i * XSpacing, r.Next(20) + 200 + i * YSpacing);
-					Point team2Pos = new Point(r.Next(20) + 200 + j * XSpacing * ShipRows + i * XSpacing, 2000 + r.Next(20) + 200 + i * YSpacing);
-					Ship player = new Ship(team1Pos, CollisionType.Team1, Color.Red);
-					Ship player2 = new Ship(team2Pos, CollisionType.Team2, Color.Blue);
-					manager.AddGameObject(player);
-					manager.AddGameObject(player2);
-				}
-			}
-		}
-	}
+        public static void Spawn(GameManager manager)
+        {
+            Random r = new Random(7);
+            // Place the player at the center of the screen
+            for (int i = 0; i < ShipRows; i++)
+            {
+                for (int j = 0; j < ShipColumns; j++)
+                {
+                    Point team1Pos = new Point(r.Next(20) + 200 + j * XSpacing, r.Next(20) + 200 + i * YSpacing);
+                    Point team2Pos = new Point(r.Next(20) + 200 + j * XSpacing, 2000 + r.Next(20) + 200 + i * YSpacing);
+                    Ship player = new Ship(team1Pos, CollisionType.Team1, Color.Red);
+                    Ship player2 = new Ship(team2Pos, CollisionType.Team2, Color.Blue);
+                    manager.AddGameObject(player);
+                    manager.AddGameObject(player2);
+                }
+            }
+        }
+    }
 }

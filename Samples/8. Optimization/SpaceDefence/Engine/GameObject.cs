@@ -13,7 +13,10 @@ namespace SpaceDefence
 		private static int _nextId = 0;
 		public readonly int Id = System.Threading.Interlocked.Increment(ref _nextId);
 
-		public Collider collider { get; protected set; }
+        public int AllObjectsIndex = -1;   // maintained by GameManager
+        public int TypeCacheIndex = -1;
+
+        public Collider collider { get; protected set; }
 		public CollisionType CollisionType;
 
 		/// <summary>
