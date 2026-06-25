@@ -108,12 +108,16 @@ namespace SpaceDefence
 		public override void Update(GameTime gameTime)
 		{
 			base.Update(gameTime);
-			cooldown -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            Rectangle pos = GetPosition();
+            Point center = pos.Center;
+
+            cooldown -= (float)gameTime.ElapsedGameTime.TotalSeconds;
 
 			Ship nearest = FindNearestEnemy(gameTime);
 			target = nearest == null ? Point.Zero : nearest.GetPosition().Center;
 
-			if ((target - GetPosition().Center).ToVector2().LengthSquared() < Range * Range)
+			if ((target - center).ToVector2().LengthSquared() < Range * Range)
 			{
 				if (cooldown < 0)
 				{
@@ -122,7 +126,7 @@ namespace SpaceDefence
 			}
 			else
 			{
-				_rectangleCollider.shape.Location += (Vector2.Normalize((target - GetPosition().Center).ToVector2()) * speed * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
+				_rectangleCollider.shape.Location += (Vector2.Normalize((target - center).ToVector2()) * speed * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
 			}
 
 			_rectangleCollider.shape.Location += (AvoidObstacles() * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
@@ -142,7 +146,9 @@ namespace SpaceDefence
 
         public Vector2 AvoidObstacles()
 		{
-			Vector2 pos = GetPosition().Center.ToVector2();
+            if (manager.BulletSpatialHash.IsEmpty) return Vector2.Zero;
+
+            Vector2 pos = GetPosition().Center.ToVector2();
 
 			// Build a square query region that encloses the avoidance circle.
 			// With CellSize = 150 and AvoidanceRange = 100, this touches at most
@@ -185,11 +191,8 @@ namespace SpaceDefence
 
         public Ship FindNearestEnemy(GameTime gameTime)
         {
-            if (cachedNearestEnemy != null && nextCheckForNearest > gameTime.ElapsedGameTime.TotalMilliseconds)
-            {
-                nextCheckForNearest -= gameTime.ElapsedGameTime.TotalMilliseconds;
+            if (cachedNearestEnemy != null && gameTime.TotalGameTime.TotalMilliseconds < nextCheckForNearest)
                 return cachedNearestEnemy;
-            }
 
             Ship nearest = null;
             Vector2 pos = GetPosition().Center.ToVector2();
@@ -248,7 +251,7 @@ namespace SpaceDefence
             cachedNearestEnemy = nearest;
 
             double cacheMs = usedFallback ? manager.RNG.Next(500, 1000) : manager.RNG.Next(33, 66);
-            nextCheckForNearest = gameTime.ElapsedGameTime.TotalMilliseconds + cacheMs;
+            nextCheckForNearest = gameTime.TotalGameTime.TotalMilliseconds + cacheMs;
             return nearest;
         }
 

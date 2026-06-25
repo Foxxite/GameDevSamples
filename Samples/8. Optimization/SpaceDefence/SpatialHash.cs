@@ -3,8 +3,9 @@
  *   All rights reserved.
  */
 
-using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using System;
+using System.Collections.Generic;
 
 namespace SpaceDefence
 {
@@ -43,8 +44,11 @@ namespace SpaceDefence
 		private readonly Stack<List<GameObject>> _listPool =
 			new Stack<List<GameObject>>();
 
+        private readonly HashSet<long> _seenPairs = new HashSet<long>();
 
-		public void Clear()
+        public bool IsEmpty => _activeCells.Count == 0;
+
+        public void Clear()
 		{
 			foreach (List<GameObject> cell in _activeCells)
 			{
@@ -102,14 +106,12 @@ namespace SpaceDefence
 					for (int j = i + 1; j < count; j++)
 					{
 						GameObject b = cell[j];
-						// Guarantee each pair is visited exactly once across all cells.
-						// Using the stable unique Id assigned at construction time.
-						if (a.Id < b.Id)
-							onPair(a, b);
-						else if (b.Id < a.Id)
-							onPair(b, a);
-						// a.Id == b.Id means it is the same object; skip.
-					}
+                        
+                        int lo = Math.Min(a.Id, b.Id), hi = Math.Max(a.Id, b.Id);
+                        long pairKey = ((long)lo << 32) | (uint)hi;
+                        if (_seenPairs.Add(pairKey)) 
+                            onPair(a.Id < b.Id ? a : b, a.Id < b.Id ? b : a);
+                    }
 				}
 			}
 		}
@@ -160,7 +162,6 @@ namespace SpaceDefence
                     if (_cells.TryGetValue(PackKey(cx, cy), out var cell))
                         results.AddRange(cell);
         }
-
 
         /// <summary>
         /// Integer floor division that handles negative coordinates correctly.
