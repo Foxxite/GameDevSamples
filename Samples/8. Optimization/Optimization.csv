@@ -19,7 +19,7 @@
 18;3200;2;60;Not shown on Profiler;ViewSpace Culling. Don't render that we can't see.;Not shown on Profiler;None;No;Desktop;;;;;;;
 19;3200;60;2;Not shown on Profiler;Use Jasper's spawn code for ships, shows issues better.;Not shown on Profiler;None;No;Desktop;;;;;;;
 20;3200;2;60;45.92;Parallel ship updates;No longer shown in Profiler;_toBeAdded/_toBeRemoved become ConcurrentQueue instead of List. API is unchanged.;No;Desktop;;;;;;;
-21;;;;;;;;;;;;;;;;
+21;3200;2;60;38.13;Optimize SpacialHashGrid better by replacing HashSet with list in the query return for ships.;31.4;None;No;Desktop;;;;;;;
 22;;;;;;;;;;;;;;;;
 23;;;;;;;;;;;;;;;;
 24;;;;;;;;;;;;;;;;

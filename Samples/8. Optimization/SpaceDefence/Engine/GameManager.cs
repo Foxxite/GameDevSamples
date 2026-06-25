@@ -78,6 +78,10 @@ namespace SpaceDefence
             InputManager = new InputManager();
             RNG = new Random();
 
+            //Setup the spacial hash sizes
+            _shipSpatialHash.CellSize = 75;
+            _bulletSpatialHash.CellSize = 15;
+
             //WorldMatrix = Matrix.CreateScale(.3f);
             WorldMatrix = Matrix.CreateScale(0.8f) * Matrix.CreateTranslation(0, -600, 0);
 
@@ -462,6 +466,12 @@ namespace SpaceDefence
             }
 
             return new List<T>();
+        }
+
+        internal List<GameObject> GetRawList(Type type)
+        {
+            _gameObjectsByType.TryGetValue(type, out var list);
+            return list;  // may be null; caller must null-check
         }
 
         /// <summary>

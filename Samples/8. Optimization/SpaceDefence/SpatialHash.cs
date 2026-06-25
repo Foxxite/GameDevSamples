@@ -23,11 +23,11 @@ namespace SpaceDefence
 	/// </summary>
 	public class SpatialHash
 	{
-		// ── tuneable constant ────────────────────────────────────────────────────
+		// ────────────────────────────────────────────────────────────────────────
 		// 150 px comfortably covers one ship body (64×128) plus a small margin.
 		// Smaller cells → fewer false-positive pairs but more cells per large object.
 		// Larger cells → fewer cells per object but more pairs to filter.
-		public const int CellSize = 150;
+		public int CellSize { get; set; } = 150;
 		// ────────────────────────────────────────────────────────────────────────
 
 		// Main lookup: packed (cellX, cellY) key → list of objects in that cell.
@@ -119,7 +119,7 @@ namespace SpaceDefence
 		/// <paramref name="queryBounds"/>. The HashSet handles deduplication automatically
 		/// when an object spans multiple cells. The set is cleared before filling.
 		///
-		/// Results are broad-phase candidates only - the caller must still do a
+		/// Results are broad-phase candidates only, the caller must still do a
 		/// precise distance check to discard objects that are in a nearby cell but
 		/// outside the actual query radius.
 		/// </summary>
@@ -146,13 +146,28 @@ namespace SpaceDefence
 			}
 		}
 
+        public void QueryRegion(Rectangle queryBounds, List<GameObject> results)
+        {
+            results.Clear();
 
-		/// <summary>
-		/// Integer floor division that handles negative coordinates correctly.
-		/// C# integer division truncates toward zero; this rounds toward −∞ instead,
-		/// so objects in negative world-space land in the right cell.
-		/// </summary>
-		private static int FloorDiv(int value, int divisor)
+            int minCX = FloorDiv(queryBounds.Left, CellSize);
+            int minCY = FloorDiv(queryBounds.Top, CellSize);
+            int maxCX = FloorDiv(queryBounds.Right, CellSize);
+            int maxCY = FloorDiv(queryBounds.Bottom, CellSize);
+            
+			for (int cx = minCX; cx <= maxCX; cx++)
+                for (int cy = minCY; cy <= maxCY; cy++)
+                    if (_cells.TryGetValue(PackKey(cx, cy), out var cell))
+                        results.AddRange(cell);
+        }
+
+
+        /// <summary>
+        /// Integer floor division that handles negative coordinates correctly.
+        /// C# integer division truncates toward zero; this rounds toward −∞ instead,
+        /// so objects in negative world-space land in the right cell.
+        /// </summary>
+        private static int FloorDiv(int value, int divisor)
 		{
 			int q = value / divisor;
 			// If the signs differ and there is a remainder, subtract one.
