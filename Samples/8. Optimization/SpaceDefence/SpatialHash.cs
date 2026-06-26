@@ -9,177 +9,266 @@ using System.Collections.Generic;
 
 namespace SpaceDefence
 {
-	/// <summary>
-	/// A dictionary-based spatial hash that partitions the world into a uniform grid of cells.
-	/// Objects are inserted by their bounding box, so an object that spans multiple cells is
-	/// registered in each of them. During collision queries, only objects that share at least
-	/// one cell are returned as candidates, eliminating the O(N²) brute-force cost.
-	///
-	/// Cell lists are reused across frames (no per-frame heap allocation).
-	/// Duplicate pair checks are suppressed by only processing pairs where objB.Id > objA.Id.
-	/// 
-	/// Based on:
-	/// https://youtu.be/h1xXcSvj7Io
-	/// https://youtu.be/sx4IIQL0x7c
-	/// </summary>
-	public class SpatialHash
-	{
-		// ────────────────────────────────────────────────────────────────────────
-		// 150 px comfortably covers one ship body (64×128) plus a small margin.
-		// Smaller cells → fewer false-positive pairs but more cells per large object.
-		// Larger cells → fewer cells per object but more pairs to filter.
-		public int CellSize { get; set; } = 150;
-		// ────────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Flat-array spatial hash. Replaces the previous Dictionary-based implementation.
+    ///
+    /// The old version called Dictionary.TryGetValue for every cell inside the query
+    /// rectangle — that involves a hash computation, a bucket walk, and a key comparison
+    /// per cell.  With a Range=500 search over CellSize=75 cells that is up to 14×14 = 196
+    /// dictionary lookups per QueryRegion call, per ship, per frame.
+    ///
+    /// This version maps cell (cx, cy) directly to a flat array index:
+    ///
+    ///     index = (cx + offsetCX) * gridH + (cy + offsetCY)
+    ///
+    /// That is one multiply + one add + one array read — no hashing, no probing, no boxing.
+    /// QueryRegion is therefore limited only by how many cells it has to visit and how many
+    /// objects are in them, not by dictionary overhead.
+    ///
+    /// Trade-off: the world bounds must be declared up front (defaults cover a generous
+    /// 1920×1080 viewport with travel margin).  Objects outside the bounds are silently
+    /// skipped.  Call SetWorldBounds() + Rebuild() if your world is larger.
+    ///
+    /// Grid sizes with default bounds [-1000, 4000] and typical cell sizes:
+    ///   CellSize 150 (collision hash) →  34 × 34 =   1 156 buckets  (~9 KB)
+    ///   CellSize  75 (ship hash)      →  68 × 68 =   4 624 buckets  (~36 KB)
+    ///   CellSize  15 (bullet hash)    → 334 ×334 = 111 556 buckets  (~870 KB)
+    /// All negligible compared to the performance gain.
+    ///
+    /// Bug fixed in this version: _seenPairs was never cleared in QueryPairs, which meant
+    /// any pair of objects seen in frame 1 would never trigger onPair again.  For bullets
+    /// that are pooled (stable IDs), this caused repeated hits on the same ship to be
+    /// silently dropped after the first contact.
+    /// </summary>
+    public class SpatialHash
+    {
+        // ── Configuration ────────────────────────────────────────────────────────
 
-		// Main lookup: packed (cellX, cellY) key → list of objects in that cell.
-		private readonly Dictionary<long, List<GameObject>> _cells =
-			new Dictionary<long, List<GameObject>>();
+        private int _cellSize = 150;
 
-		// Tracks which cell lists were touched this frame so Clear() is O(touched cells)
-		// rather than O(all cells ever seen).
-		private readonly List<List<GameObject>> _activeCells =
-			new List<List<GameObject>>();
+        /// <summary>
+        /// Width/height of each grid cell in world units.
+        /// Changing this automatically rebuilds the flat grid.
+        /// </summary>
+        public int CellSize
+        {
+            get => _cellSize;
+            set { _cellSize = value; Rebuild(); }
+        }
 
-		// Pool of empty lists recycled each frame to avoid GC pressure.
-		private readonly Stack<List<GameObject>> _listPool =
-			new Stack<List<GameObject>>();
+        // World bounds — objects outside are silently ignored during Insert.
+        // Defaults cover a 1920×1080 viewport plus generous travel margin.
+        private int _worldMinX = -1000, _worldMinY = -1000;
+        private int _worldMaxX = 4000, _worldMaxY = 4000;
 
+        /// <summary>
+        /// Override the world bounds and immediately rebuild the grid.
+        /// Call this before the first Insert if the defaults don't fit your world.
+        /// </summary>
+        public void SetWorldBounds(int minX, int minY, int maxX, int maxY)
+        {
+            _worldMinX = minX; _worldMinY = minY;
+            _worldMaxX = maxX; _worldMaxY = maxY;
+            Rebuild();
+        }
+
+        // ── Internal flat grid ────────────────────────────────────────────────────
+
+        // 1-D array: _buckets[(cx + _offsetCX) * _gridH + (cy + _offsetCY)]
+        // null  → cell is empty (no list allocated for it this frame).
+        // !null → list of objects registered in this cell.
+        private List<GameObject>[] _buckets = Array.Empty<List<GameObject>>();
+        private int _gridW, _gridH;
+        private int _offsetCX, _offsetCY;   // shift so negative cell coords map to index ≥ 0
+
+        // Which flat indices are occupied this frame — allows O(occupied) Clear
+        // rather than O(entire grid).
+        private readonly List<int> _activeIndices = new List<int>();
+
+        // Recycled cell lists — avoids per-frame heap allocation.
+        private readonly Stack<List<GameObject>> _listPool = new Stack<List<GameObject>>();
+
+        // Deduplication for QueryPairs.
         private readonly HashSet<long> _seenPairs = new HashSet<long>();
 
-        public bool IsEmpty => _activeCells.Count == 0;
+        // ── Public API ───────────────────────────────────────────────────────────
 
+        public bool IsEmpty => _activeIndices.Count == 0;
+
+        public SpatialHash() => Rebuild();
+
+        /// <summary>
+        /// Rebuilds the flat grid using the current CellSize and world bounds.
+        /// Called automatically by the CellSize property setter.
+        /// </summary>
+        public void Rebuild()
+        {
+            _offsetCX = -FloorDiv(_worldMinX, _cellSize);
+            _offsetCY = -FloorDiv(_worldMinY, _cellSize);
+            _gridW = FloorDiv(_worldMaxX, _cellSize) + _offsetCX + 2;
+            _gridH = FloorDiv(_worldMaxY, _cellSize) + _offsetCY + 2;
+            _buckets = new List<GameObject>[_gridW * _gridH];
+            _activeIndices.Clear();
+        }
+
+        /// <summary>
+        /// Clears all objects inserted this frame.
+        /// Cost is O(occupied cells), not O(entire grid).
+        /// </summary>
         public void Clear()
-		{
-			foreach (List<GameObject> cell in _activeCells)
-			{
-				cell.Clear();
-				_listPool.Push(cell);
-			}
-			_activeCells.Clear();
-			_cells.Clear();
-		}
+        {
+            foreach (int idx in _activeIndices)
+            {
+                List<GameObject> cell = _buckets[idx];
+                cell.Clear();
+                _listPool.Push(cell);
+                _buckets[idx] = null;
+            }
+            _activeIndices.Clear();
+        }
 
-		/// <summary>
-		/// Registers <paramref name="obj"/> in every cell overlapped by its bounding box.
-		/// </summary>
-		public void Insert(GameObject obj)
-		{
-			Rectangle bounds = obj.GetPosition();
+        /// <summary>
+        /// Registers <paramref name="obj"/> in every cell overlapped by its bounding box.
+        /// Objects outside the declared world bounds are silently ignored.
+        /// </summary>
+        public void Insert(GameObject obj)
+        {
+            Rectangle b = obj.GetPosition();
 
-			int minCX = FloorDiv(bounds.Left, CellSize);
-			int minCY = FloorDiv(bounds.Top, CellSize);
-			int maxCX = FloorDiv(bounds.Right, CellSize);
-			int maxCY = FloorDiv(bounds.Bottom, CellSize);
+            int minCX = FloorDiv(b.Left, _cellSize);
+            int minCY = FloorDiv(b.Top, _cellSize);
+            int maxCX = FloorDiv(b.Right, _cellSize);
+            int maxCY = FloorDiv(b.Bottom, _cellSize);
 
-			for (int cx = minCX; cx <= maxCX; cx++)
-			{
-				for (int cy = minCY; cy <= maxCY; cy++)
-				{
-					long key = PackKey(cx, cy);
-					if (!_cells.TryGetValue(key, out List<GameObject> cell))
-					{
-						cell = _listPool.Count > 0
-							? _listPool.Pop()
-							: new List<GameObject>();
-						_cells[key] = cell;
-						_activeCells.Add(cell);
-					}
-					cell.Add(obj);
-				}
-			}
-		}
+            for (int cx = minCX; cx <= maxCX; cx++)
+            {
+                int ax = cx + _offsetCX;
+                if ((uint)ax >= (uint)_gridW) continue;      // out of bounds — skip
 
-		/// <summary>
-		/// Runs broad-phase collision detection and calls
-		/// <paramref name="onPair"/>(a, b) for every unique candidate pair.
-		/// Each pair is reported exactly once (a.Id &lt; b.Id is guaranteed).
-		/// The caller is responsible for the narrow-phase check.
-		/// </summary>
-		public void QueryPairs(System.Action<GameObject, GameObject> onPair)
-		{
-			foreach (List<GameObject> cell in _activeCells)
-			{
-				int count = cell.Count;
-				for (int i = 0; i < count; i++)
-				{
-					GameObject a = cell[i];
-					for (int j = i + 1; j < count; j++)
-					{
-						GameObject b = cell[j];
-                        
-                        int lo = Math.Min(a.Id, b.Id), hi = Math.Max(a.Id, b.Id);
-                        long pairKey = ((long)lo << 32) | (uint)hi;
-                        if (_seenPairs.Add(pairKey)) 
-                            onPair(a.Id < b.Id ? a : b, a.Id < b.Id ? b : a);
+                for (int cy = minCY; cy <= maxCY; cy++)
+                {
+                    int ay = cy + _offsetCY;
+                    if ((uint)ay >= (uint)_gridH) continue;
+
+                    int idx = ax * _gridH + ay;
+                    if (_buckets[idx] == null)
+                    {
+                        _buckets[idx] = _listPool.Count > 0
+                            ? _listPool.Pop()
+                            : new List<GameObject>();
+                        _activeIndices.Add(idx);
                     }
-				}
-			}
-		}
+                    _buckets[idx].Add(obj);
+                }
+            }
+        }
 
-		/// <summary>
-		/// Fills <paramref name="results"/> with every object whose cell overlaps
-		/// <paramref name="queryBounds"/>. The HashSet handles deduplication automatically
-		/// when an object spans multiple cells. The set is cleared before filling.
-		///
-		/// Results are broad-phase candidates only, the caller must still do a
-		/// precise distance check to discard objects that are in a nearby cell but
-		/// outside the actual query radius.
-		/// </summary>
-		public void QueryRegion(Rectangle queryBounds, HashSet<GameObject> results)
-		{
-			results.Clear();
+        /// <summary>
+        /// Fills <paramref name="results"/> with every object whose cell overlaps
+        /// <paramref name="queryBounds"/>.
+        /// HashSet overload — deduplicates objects that span multiple cells.
+        /// </summary>
+        public void QueryRegion(Rectangle queryBounds, HashSet<GameObject> results)
+        {
+            results.Clear();
 
-			int minCX = FloorDiv(queryBounds.Left, CellSize);
-			int minCY = FloorDiv(queryBounds.Top, CellSize);
-			int maxCX = FloorDiv(queryBounds.Right, CellSize);
-			int maxCY = FloorDiv(queryBounds.Bottom, CellSize);
+            int minCX = FloorDiv(queryBounds.Left, _cellSize);
+            int minCY = FloorDiv(queryBounds.Top, _cellSize);
+            int maxCX = FloorDiv(queryBounds.Right, _cellSize);
+            int maxCY = FloorDiv(queryBounds.Bottom, _cellSize);
 
-			for (int cx = minCX; cx <= maxCX; cx++)
-			{
-				for (int cy = minCY; cy <= maxCY; cy++)
-				{
-					long key = PackKey(cx, cy);
-					if (_cells.TryGetValue(key, out List<GameObject> cell))
-					{
-						foreach (GameObject obj in cell)
-							results.Add(obj);   // HashSet ignores duplicates
-					}
-				}
-			}
-		}
+            for (int cx = minCX; cx <= maxCX; cx++)
+            {
+                int ax = cx + _offsetCX;
+                if ((uint)ax >= (uint)_gridW) continue;
 
+                for (int cy = minCY; cy <= maxCY; cy++)
+                {
+                    int ay = cy + _offsetCY;
+                    if ((uint)ay >= (uint)_gridH) continue;
+
+                    List<GameObject> cell = _buckets[ax * _gridH + ay];
+                    if (cell == null) continue;
+
+                    foreach (GameObject obj in cell)
+                        results.Add(obj);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Fills <paramref name="results"/> with every object whose cell overlaps
+        /// <paramref name="queryBounds"/>.
+        /// List overload — may include duplicates for objects spanning multiple cells;
+        /// acceptable when the caller already performs an exact distance check.
+        /// </summary>
         public void QueryRegion(Rectangle queryBounds, List<GameObject> results)
         {
             results.Clear();
 
-            int minCX = FloorDiv(queryBounds.Left, CellSize);
-            int minCY = FloorDiv(queryBounds.Top, CellSize);
-            int maxCX = FloorDiv(queryBounds.Right, CellSize);
-            int maxCY = FloorDiv(queryBounds.Bottom, CellSize);
-            
-			for (int cx = minCX; cx <= maxCX; cx++)
+            int minCX = FloorDiv(queryBounds.Left, _cellSize);
+            int minCY = FloorDiv(queryBounds.Top, _cellSize);
+            int maxCX = FloorDiv(queryBounds.Right, _cellSize);
+            int maxCY = FloorDiv(queryBounds.Bottom, _cellSize);
+
+            for (int cx = minCX; cx <= maxCX; cx++)
+            {
+                int ax = cx + _offsetCX;
+                if ((uint)ax >= (uint)_gridW) continue;
+
                 for (int cy = minCY; cy <= maxCY; cy++)
-                    if (_cells.TryGetValue(PackKey(cx, cy), out var cell))
-                        results.AddRange(cell);
+                {
+                    int ay = cy + _offsetCY;
+                    if ((uint)ay >= (uint)_gridH) continue;
+
+                    List<GameObject> cell = _buckets[ax * _gridH + ay];
+                    if (cell == null) continue;
+
+                    results.AddRange(cell);
+                }
+            }
         }
 
         /// <summary>
-        /// Integer floor division that handles negative coordinates correctly.
-        /// C# integer division truncates toward zero; this rounds toward −∞ instead,
-        /// so objects in negative world-space land in the right cell.
+        /// Calls <paramref name="onPair"/>(a, b) for every unique candidate collision
+        /// pair where a.Id &lt; b.Id.  Each pair is reported exactly once even if the
+        /// two objects share more than one cell.
+        /// </summary>
+        public void QueryPairs(Action<GameObject, GameObject> onPair)
+        {
+            _seenPairs.Clear();
+
+            foreach (int idx in _activeIndices)
+            {
+                List<GameObject> cell = _buckets[idx];
+                int count = cell.Count;
+
+                for (int i = 0; i < count; i++)
+                {
+                    GameObject a = cell[i];
+                    for (int j = i + 1; j < count; j++)
+                    {
+                        GameObject b = cell[j];
+
+                        int lo = Math.Min(a.Id, b.Id), hi = Math.Max(a.Id, b.Id);
+                        long pairKey = ((long)lo << 32) | (uint)hi;
+                        if (_seenPairs.Add(pairKey))
+                            onPair(a.Id < b.Id ? a : b, a.Id < b.Id ? b : a);
+                    }
+                }
+            }
+        }
+
+        // ── Internals ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Integer floor-division that handles negative coordinates correctly.
+        /// C# truncates toward zero; this rounds toward −∞.
         /// </summary>
         private static int FloorDiv(int value, int divisor)
-		{
-			int q = value / divisor;
-			// If the signs differ and there is a remainder, subtract one.
-			return (value ^ divisor) < 0 && q * divisor != value ? q - 1 : q;
-		}
-
-		/// <summary>
-		/// Packs two cell coordinates into a single 64-bit key for the dictionary.
-		/// Stores cellX in the high 32 bits and cellY in the low 32 bits.
-		/// </summary>
-		private static long PackKey(int cellX, int cellY) =>
-			((long)cellX << 32) | (uint)cellY;
-	}
+        {
+            int q = value / divisor;
+            return (value ^ divisor) < 0 && q * divisor != value ? q - 1 : q;
+        }
+    }
 }
