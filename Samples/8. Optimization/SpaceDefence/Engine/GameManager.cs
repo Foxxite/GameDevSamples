@@ -98,7 +98,7 @@ namespace SpaceDefence
             RNG = new Random();
 
             //Setup the spacial hash sizes
-            _shipSpatialHash.CellSize = 75;
+            _shipSpatialHash.CellSize = 150;
             _bulletSpatialHash.CellSize = 15;
 
             //WorldMatrix = Matrix.CreateScale(.3f);

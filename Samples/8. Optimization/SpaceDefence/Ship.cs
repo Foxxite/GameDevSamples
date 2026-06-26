@@ -290,7 +290,7 @@ namespace SpaceDefence
 
             cachedNearestEnemy = nearest;
 
-            double cacheMs = usedFallback ? manager.RNG.Next(500, 1000) : manager.RNG.Next(33, 66);
+            double cacheMs = usedFallback ? manager.RNG.Next(500, 1000) : manager.RNG.Next(150, 300);
             nextCheckForNearest = gameTime.ElapsedGameTime.TotalMilliseconds + cacheMs;
             return nearest;
         }
