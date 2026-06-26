@@ -196,7 +196,7 @@ namespace SpaceDefence
             _spatialHash.Clear();
             foreach (GameObject obj in _allGameObjects)
             {
-                if (!obj.IsActive) continue;
+                if (obj is Bullet && !obj.IsActive) continue;
                 if (obj.CollisionType == CollisionType.None) continue;
                 if (obj.collider == null) continue;
                 _spatialHash.Insert(obj);
@@ -205,15 +205,12 @@ namespace SpaceDefence
             // ── Narrow phase: check only spatially adjacent pairs ────────────────
             _spatialHash.QueryPairs((objA, objB) =>
             {
-                // Skip pairs that are on the same team / share a collision bit -
-                // same logic as the original brute-force check.
-                if ((objA.CollisionType & objB.CollisionType) != 0)
-                    return;
-
+                if (objA is Bullet && objB is Bullet) return;  // skip bullet-bullet pairs entirely
+                if ((objA.CollisionType & objB.CollisionType) != 0) return;
                 if (objA.CheckCollision(objB))
                 {
                     objA.OnCollision(objB);
-                    objB.OnCollision(objA);
+                    objB.OnCollision(objB);
                 }
             });
         }
