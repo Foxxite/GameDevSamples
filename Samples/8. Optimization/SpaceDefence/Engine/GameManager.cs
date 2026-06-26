@@ -65,6 +65,10 @@ namespace SpaceDefence
         private readonly Bullet[] _bulletPool = new Bullet[BulletPoolCap];
         private int _bulletPoolNext = 0;
 
+        private const int EmitterPoolCap = 640;
+        private readonly GpuParticleEmitter[] _emitterPool = new GpuParticleEmitter[EmitterPoolCap];
+        private int _emitterPoolNext = 0;
+
         // ── Clump-leader election ─────────────────────────────────────────────
         // Maps a packed (team | cellX | cellY) key to the elected leader ship
         // for that cell.  Rebuilt every frame on the main thread before the
@@ -115,6 +119,8 @@ namespace SpaceDefence
         {
             Game = game;
             _content = content;
+
+            PrewarmEmitterPool(content);
         }
 
         public void Load(ContentManager content)
@@ -142,6 +148,14 @@ namespace SpaceDefence
                 // If pixel not present, leave null - debug drawing will be skipped.
                 _debugPixel = null;
             }
+        }
+
+        public GpuParticleEmitter RentEmitter(Vector2 position, ParticleData data)
+        {
+            GpuParticleEmitter e = _emitterPool[_emitterPoolNext];
+            _emitterPoolNext = (_emitterPoolNext + 1) % EmitterPoolCap;
+            e.Reset(position, data);
+            return e;
         }
 
         /// <summary>Rent a bullet from the pool (or reset the oldest one).</summary>
@@ -183,6 +197,22 @@ namespace SpaceDefence
         /// <summary>Mark a bullet as available for reuse on the next ring wrap.</summary>
         public void ReturnBullet(Bullet b) => b.IsActive = false;
 
+
+        private void PrewarmEmitterPool(ContentManager content)
+        {
+            ParticleData template = new ParticleData
+            {
+                lifespan = 5,
+                particleCount = 40,
+                maxScale = .6f,
+                minScale = .2f
+            };
+            for (int i = 0; i < EmitterPoolCap; i++)
+            {
+                _emitterPool[i] = new GpuParticleEmitter(Vector2.Zero, template);
+                _emitterPool[i].Load(content);  // allocates VB/IB once
+            }
+        }
 
         public void HandleInput(InputManager inputManager)
         {
@@ -404,11 +434,26 @@ namespace SpaceDefence
             // Pass 2: GPU particles: raw GraphicsDevice draw, no SpriteBatch.
             // Drawn here so we never need to End/Begin a SpriteBatch mid-loop.
             // ---------------------------------------------------------------
-            if (_gameObjectsByType.TryGetValue(typeof(GpuParticleEmitter),
-                    out List<GameObject> emitters))
+            if (_gameObjectsByType.TryGetValue(typeof(GpuParticleEmitter), out List<GameObject> emitters) && emitters.Count > 0)
             {
+                // Set render state once for all emitters
+                var prevBlend = GraphicsDevice.BlendState;
+                var prevDepth = GraphicsDevice.DepthStencilState;
+                var prevRaster = GraphicsDevice.RasterizerState;
+                var prevSampler = GraphicsDevice.SamplerStates[0];
+
+                GraphicsDevice.BlendState = BlendState.AlphaBlend;
+                GraphicsDevice.DepthStencilState = DepthStencilState.None;
+                GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+                GraphicsDevice.SamplerStates[0] = SamplerState.LinearClamp;
+
                 foreach (GameObject obj in emitters)
                     ((GpuParticleEmitter)obj).DrawGpu(GraphicsDevice, WorldMatrix);
+
+                GraphicsDevice.BlendState = prevBlend;
+                GraphicsDevice.DepthStencilState = prevDepth;
+                GraphicsDevice.RasterizerState = prevRaster;
+                GraphicsDevice.SamplerStates[0] = prevSampler;
             }
 
             // ---------------------------------------------------------------

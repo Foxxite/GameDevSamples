@@ -110,8 +110,7 @@ namespace SpaceDefence
                         maxScale = .6f,
                         minScale = .2f
                     };
-                    manager.AddGameObject(new GpuParticleEmitter(
-                        GetPosition().Center.ToVector2(), data));
+                    manager.AddGameObject(manager.RentEmitter(GetPosition().Center.ToVector2(), data));
                 }
             }
         }

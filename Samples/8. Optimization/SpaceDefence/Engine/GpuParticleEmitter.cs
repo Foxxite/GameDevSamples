@@ -64,7 +64,7 @@ namespace SpaceDefence
         private float _birthTime = -1f;  // -1 = not yet set
         private float _currentAge;
 
-        private readonly Vector2 _spawnPos;
+        private Vector2 _spawnPos;
         private readonly ParticleData _data;
         private readonly Random _rng = new Random();
 
@@ -156,23 +156,11 @@ namespace SpaceDefence
             if (_vertexBuffer == null) return;
 
             Viewport vp = gd.Viewport;
-            Matrix proj = Matrix.CreateOrthographicOffCenter(
-                0, vp.Width, vp.Height, 0, 0, -1);
+            Matrix proj = Matrix.CreateOrthographicOffCenter(0, vp.Width, vp.Height, 0, 0, -1);
 
             _shader.Parameters["MatrixTransform"].SetValue(worldMatrix * proj);
             _shader.Parameters["CurrentTime"].SetValue(_currentAge);
             _shader.Parameters["ParticleTexture"].SetValue(_texture);
-
-            // Save and restore render states so we don't break the SpriteBatch pass.
-            var prevBlend = gd.BlendState;
-            var prevDepth = gd.DepthStencilState;
-            var prevRaster = gd.RasterizerState;
-            var prevSampler = gd.SamplerStates[0];
-
-            gd.BlendState = BlendState.AlphaBlend;
-            gd.DepthStencilState = DepthStencilState.None;
-            gd.RasterizerState = RasterizerState.CullNone;
-            gd.SamplerStates[0] = SamplerState.LinearClamp;
 
             gd.SetVertexBuffer(_vertexBuffer);
             gd.Indices = _indexBuffer;
@@ -180,22 +168,47 @@ namespace SpaceDefence
             foreach (EffectPass pass in _shader.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                gd.DrawIndexedPrimitives(
-                    PrimitiveType.TriangleList,
-                    baseVertex: 0,
-                    startIndex: 0,
-                    primitiveCount: _particleCount * 2);
+                gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, _particleCount * 2);
             }
-
-            gd.BlendState = prevBlend;
-            gd.DepthStencilState = prevDepth;
-            gd.RasterizerState = prevRaster;
-            gd.SamplerStates[0] = prevSampler;
         }
 
         // The general Draw() call from the SpriteBatch loop is intentionally a no-op.
         // All rendering goes through DrawGpu() above, called directly by GameManager.
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch) { }
+
+        public void Reset(Vector2 newPosition, ParticleData data)
+        {
+            _spawnPos = newPosition;   // make _spawnPos a settable field
+            _birthTime = -1f;
+            _currentAge = 0f;
+            _maxLifespan = data.lifespan;
+
+            // Re-upload new random particle data into the existing buffers
+            int vertCount = _particleCount * 4;
+            var vertices = new ParticleVertex[vertCount];
+            float spriteHalf = _texture.Width * 0.5f;
+
+            for (int i = 0; i < _particleCount; i++)
+            {
+                float dir = MathHelper.Lerp(data.minDirection, data.maxDirection, (float)_rng.NextDouble());
+                float spd = MathHelper.Lerp(data.minSpeed, data.maxSpeed, (float)_rng.NextDouble());
+                float scale = MathHelper.Lerp(data.minScale, data.maxScale, (float)_rng.NextDouble());
+                Vector2 vel = new Vector2((float)Math.Cos(dir), (float)Math.Sin(dir)) * spd;
+                float halfExt = spriteHalf * scale;
+                var life = new Vector3(data.lifespan, data.fade, halfExt);
+
+                for (int c = 0; c < 4; c++)
+                    vertices[i * 4 + c] = new ParticleVertex
+                    {
+                        InitialPosition = newPosition,
+                        Velocity = vel,
+                        Acceleration = data.acceleration,
+                        LifeParams = life,
+                        CornerOffset = QuadCorners[c],
+                    };
+            }
+            _vertexBuffer.SetData(vertices);   // reuse existing GPU buffer
+        }
 
         public override void Destroy()
         {

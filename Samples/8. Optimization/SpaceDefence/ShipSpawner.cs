@@ -13,8 +13,8 @@ namespace SpaceDefence
 		//public static int ShipRows = 4;
 		//public static int ShipColumns = 5;
 
-		public static int ShipRows = 40;
-		public static int ShipColumns = 40;
+		public static int ShipRows = 95;
+		public static int ShipColumns = 95;
 
         public static int XSpacing = 100;
         public static int YSpacing = 100;
