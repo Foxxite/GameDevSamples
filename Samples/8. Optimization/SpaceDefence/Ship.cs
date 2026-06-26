@@ -125,7 +125,7 @@ namespace SpaceDefence
             // Cache position once — GetPosition() walks the collider chain each call.
             Point center = GetPosition().Center;
 
-            if (ClumpLeader != null && ClumpLeader.IsActive)
+            if (ClumpLeader != null && ClumpLeader.TypeCacheIndex >= 0)
             {
                 // ── Follower path ─────────────────────────────────────────────────
                 // The leader ran in Phase 1 and has already written ClumpTarget and
@@ -192,6 +192,8 @@ namespace SpaceDefence
 
         public Vector2 AvoidObstacles()
         {
+            if (manager.BulletSpatialHash.IsEmpty) return Vector2.Zero;
+
             Vector2 pos = GetPosition().Center.ToVector2();
 
             // Build a square query region that encloses the avoidance circle.
@@ -235,7 +237,7 @@ namespace SpaceDefence
 
         public Ship FindNearestEnemy(GameTime gameTime)
         {
-            if (cachedNearestEnemy != null && cachedNearestEnemy.IsActive && nextCheckForNearest > gameTime.ElapsedGameTime.TotalMilliseconds)
+            if (cachedNearestEnemy != null && cachedNearestEnemy.TypeCacheIndex >= 0 && nextCheckForNearest > gameTime.ElapsedGameTime.TotalMilliseconds)
             {
                 nextCheckForNearest -= gameTime.ElapsedGameTime.TotalMilliseconds;
                 return cachedNearestEnemy;

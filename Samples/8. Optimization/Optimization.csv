@@ -25,7 +25,7 @@
 24;3200;10;60;Not shown on Profiler;Optimize cache busts that cause giant lagg spikes;Not shown on Profiler;None;No;Desktop;;;;;;;
 25;3200;10;60;25.85;Remove find nearest enemy fallback;No longer shown in Profiler;None;Ships won't shoot at all when the spacial hash returns nothing.;Desktop;;;;;;;
 26;3200;20;60;Not shown on Profiler;Double the ShipSpatialHash cell size;Not shown on Profiler;None;No;Desktop;;;;;;;
-27;;;;;;;;;;;;;;;;
+27;3200;20;60;Not shown on Profiler;Increase clump size and re-election interval;Not shown on Profiler;None;No;Desktop;;;;;;;
 28;;;;;;;;;;;;;;;;
 29;;;;;;;;;;;;;;;;
 30;;;;;;;;;;;;;;;;

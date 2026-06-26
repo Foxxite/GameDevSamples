@@ -72,13 +72,13 @@ namespace SpaceDefence
         // A grid cell of 150 px means ships within ~1 ship-length of each other
         // share a leader.  Increase to group larger clumps; decrease for tighter
         // per-ship accuracy.
-        private const int ClumpCellSize = 150;
+        private const int ClumpCellSize = 300;
 
         // Re-elect clump leaders only once every N frames.  Ships move ~100 px/s
         // so at 60 fps they travel ~1.7 px per frame; over 10 frames that is ~17 px —
         // well within one clump cell (150 px).  Raise this to save more CPU;
         // lower it if ships feel like they stop reacting to formation changes.
-        private const int ClumpElectionInterval = 10;
+        private const int ClumpElectionInterval = 30;
         private int _clumpElectionCountdown = 0;
         // ─────────────────────────────────────────────────────────────────────
 
@@ -196,7 +196,7 @@ namespace SpaceDefence
             _spatialHash.Clear();
             foreach (GameObject obj in _allGameObjects)
             {
-                // Objects with no collision type or no collider can't collide.
+                if (!obj.IsActive) continue;
                 if (obj.CollisionType == CollisionType.None) continue;
                 if (obj.collider == null) continue;
                 _spatialHash.Insert(obj);
@@ -230,7 +230,10 @@ namespace SpaceDefence
             if (_gameObjectsByType.TryGetValue(typeof(Bullet), out List<GameObject> bulletList))
             {
                 foreach (GameObject bullet in bulletList)
-                    _bulletSpatialHash.Insert(bullet);
+                {
+                    if (bullet.IsActive)
+                        _bulletSpatialHash.Insert(bullet);
+                }
             }
 
             // Rebuild the ship spatial hash once per frame so that every ship
