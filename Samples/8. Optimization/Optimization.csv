@@ -27,7 +27,7 @@
 26;3200;20;60;Not shown on Profiler;Double the ShipSpatialHash cell size;Not shown on Profiler;None;No;Desktop;;;;;;;
 27;3200;20;60;Not shown on Profiler;Increase clump size and re-election interval;Not shown on Profiler;None;No;Desktop;;;;;;;
 28;3200;20;60;27.06;Optimize CheckCollsion even more;No longer shown in Profiler;This is getting into manaing memoery myself teritory. Making reading and understanindg the code quite hard.;No;Desktop;;;;;;;
-29;;;;;;;;;;;;;;;;
+29;3200;32;60;34.14;Remove an accidental O(n) issue I introduced in the TypeCache;No longer shown in Profiler;None;No;Desktop;;;;;;;
 30;;;;;;;;;;;;;;;;
 31;;;;;;;;;;;;;;;;
 32;;;;;;;;;;;;;;;;
