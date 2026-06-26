@@ -271,8 +271,7 @@ namespace SpaceDefence
             }
 
             // Fallback: if no enemy was found within Range (e.g. early in the match
-            // when teams are far apart), do the original full list scan so ships
-            // still move toward each other. This keeps functionality identical.
+            // when teams are far apart), we pick the first ship of the other team we can find.
             bool usedFallback = (nearest == null);
             if (nearest == null)
             {
@@ -284,14 +283,8 @@ namespace SpaceDefence
                         if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
                             continue;
 
-                        Vector2 newPos = othership.GetPosition().Center.ToVector2();
-                        float distSq = (pos - newPos).LengthSquared();
-
-                        if (distSq < bestDistSq)
-                        {
-                            bestDistSq = distSq;
-                            nearest = othership;
-                        }
+                        nearest = othership;
+                        break;
                     }
             }
 
