@@ -235,7 +235,7 @@ namespace SpaceDefence
 
         public Ship FindNearestEnemy(GameTime gameTime)
         {
-            if (cachedNearestEnemy != null && nextCheckForNearest > gameTime.ElapsedGameTime.TotalMilliseconds)
+            if (cachedNearestEnemy != null && cachedNearestEnemy.IsActive && nextCheckForNearest > gameTime.ElapsedGameTime.TotalMilliseconds)
             {
                 nextCheckForNearest -= gameTime.ElapsedGameTime.TotalMilliseconds;
                 return cachedNearestEnemy;

@@ -470,6 +470,8 @@ namespace SpaceDefence
             list.Add(gameObject);
 
             gameObject.AllObjectsIndex = _allGameObjects.Count;
+            gameObject.IsActive = true;
+
             _allGameObjects.Add(gameObject); // keep flat list in sync
         }
 
@@ -519,6 +521,7 @@ namespace SpaceDefence
             }
 
             go.AllObjectsIndex = -1;
+            go.IsActive = false;
         }
 
         public List<GameObject> GetGameObjects()
