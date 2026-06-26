@@ -43,6 +43,8 @@ namespace SpaceDefence
         /// <summary>Read-only access to the ship spatial hash for Ship.FindNearestEnemy().</summary>
         public SpatialHash ShipSpatialHash => _shipSpatialHash;
 
+        private readonly List<GameObject> _collisionQueryBuffer = new List<GameObject>();
+
         private ConcurrentQueue<GameObject> _toBeRemoved;
         private ConcurrentQueue<GameObject> _toBeAdded;
         private ContentManager _content;
@@ -158,7 +160,7 @@ namespace SpaceDefence
 
             // A bullet that was returned this frame is in _toBeRemoved (still in
             // _allGameObjects) but has IsActive = false.  Detect both cases:
-            bool inGame = b.IsActive;
+            bool inGame = b.AllObjectsIndex >= 0;
 
             if (inGame)
             {
@@ -192,27 +194,37 @@ namespace SpaceDefence
 
         public void CheckCollision()
         {
-            // ── Broad phase: build the spatial hash ──────────────────────────────
+            // Ship-only spatial hash — no bullets, no bullet-bullet pairs possible
             _spatialHash.Clear();
-            foreach (GameObject obj in _allGameObjects)
-            {
-                if (obj is Bullet && !obj.IsActive) continue;
-                if (obj.CollisionType == CollisionType.None) continue;
-                if (obj.collider == null) continue;
-                _spatialHash.Insert(obj);
-            }
-
-            // ── Narrow phase: check only spatially adjacent pairs ────────────────
-            _spatialHash.QueryPairs((objA, objB) =>
-            {
-                if (objA is Bullet && objB is Bullet) return;  // skip bullet-bullet pairs entirely
-                if ((objA.CollisionType & objB.CollisionType) != 0) return;
-                if (objA.CheckCollision(objB))
+            if (_gameObjectsByType.TryGetValue(typeof(Ship), out var ships))
+                foreach (var s in ships)
                 {
-                    objA.OnCollision(objB);
-                    objB.OnCollision(objB);
+                    if (s.collider == null) continue;
+                    _spatialHash.Insert(s);
                 }
-            });
+
+            // For each active bullet, query only nearby ships
+            if (_gameObjectsByType.TryGetValue(typeof(Bullet), out var bullets))
+            {
+                foreach (var obj in bullets)
+                {
+                    Bullet b = (Bullet)obj;
+                    if (!b.IsActive) continue;
+
+                    _collisionQueryBuffer.Clear();
+                    _spatialHash.QueryRegion(b.GetPosition(), _collisionQueryBuffer);
+
+                    foreach (var shipObj in _collisionQueryBuffer)
+                    {
+                        if ((b.CollisionType & shipObj.CollisionType) != 0) continue;
+                        if (b.CheckCollision(shipObj))
+                        {
+                            b.OnCollision(shipObj);
+                            shipObj.OnCollision(b);
+                        }
+                    }
+                }
+            }
         }
 
         public void Update(GameTime gameTime)
