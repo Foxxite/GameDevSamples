@@ -537,6 +537,12 @@ namespace SpaceDefence
             return new List<T>();
         }
 
+        public List<GameObject> GetRawList(Type type)
+        {
+            _gameObjectsByType.TryGetValue(type, out var list);
+            return list;
+        }
+
         /// <summary>
         /// Get a random location on the screen.
         /// </summary>

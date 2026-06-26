@@ -18,8 +18,8 @@ namespace SpaceDefence
         public float health = 100;
 
         private float _sqrtAvoidanceRange;
-        private readonly HashSet<GameObject> _nearbyBullets = new HashSet<GameObject>();
-        private readonly HashSet<GameObject> _nearbyShips = new HashSet<GameObject>();
+        private readonly List<GameObject> _nearbyBullets = new List<GameObject>();
+        private readonly List<GameObject> _nearbyShips = new List<GameObject>();
 
         private double nextCheckForNearest = 0;
         private Ship cachedNearestEnemy = null;
@@ -276,21 +276,23 @@ namespace SpaceDefence
             bool usedFallback = (nearest == null);
             if (nearest == null)
             {
-                foreach (GameObject candidate in manager.GetGameObjectsByType<Ship>())
-                {
-                    Ship othership = (Ship)candidate;
-                    if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
-                        continue;
-
-                    Vector2 newPos = othership.GetPosition().Center.ToVector2();
-                    float distSq = (pos - newPos).LengthSquared();
-
-                    if (distSq < bestDistSq)
+                var rawList = manager.GetRawList(typeof(Ship));
+                if (rawList != null) 
+                    foreach (GameObject candidate in rawList)
                     {
-                        bestDistSq = distSq;
-                        nearest = othership;
+                        Ship othership = (Ship)candidate;
+                        if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
+                            continue;
+
+                        Vector2 newPos = othership.GetPosition().Center.ToVector2();
+                        float distSq = (pos - newPos).LengthSquared();
+
+                        if (distSq < bestDistSq)
+                        {
+                            bestDistSq = distSq;
+                            nearest = othership;
+                        }
                     }
-                }
             }
 
             cachedNearestEnemy = nearest;
