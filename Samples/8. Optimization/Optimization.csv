@@ -1,6 +1,6 @@
 ﻿#;Number Of Ships;Worst FPS;Best FPS;% CPU Time Worst;Improvements;% CPU Time New;Maintainabilty Effects;Effects Functionality;Tested On;;System;GPU;CPU;RAM;;
 1;40;60;60;N/A;Replace colliders with colliders from SpaceDefense assignment;N/A;None;No;Desktop;;Desktop;RTX 5080;Ryzen 7900X3D;64GB 6000 MT/s;;
-2;40;60;60;21,65;Remove collision from particles by setting group to none;8,76;Extra check for collision group (none);No;Desktop;;Laptop;;;;;
+2;40;60;60;21,65;Remove collision from particles by setting group to none;8,76;Extra check for collision group (none);No;Desktop;;Laptop;Intel(R) UHD Graphics;i5-10210U;16GB 2667MT/s;;
 3;40;60;60;14,8;Replace ReplaceAndFadeTexture in Ship with Shader;Moved to GPU;Replaces calls to recolor texture function to updating shader params.;No;Desktop;;;;;;;
 4;200;1;1;N/A;Increase ship count to better see issues;N/A;N/A;N/A;Desktop;;;;;;;
 5;200;1;60;38,83;Fix issues with collision, did flags incorrectly in the first try, Also cache some expensive lookups and add early returns,;5,62;None;No;Desktop;;;;;;;
@@ -29,8 +29,8 @@
 28;3200;20;60;27.06;Optimize CheckCollsion even more;No longer shown in Profiler;This is getting into manaing memoery myself teritory. Making reading and understanindg the code quite hard.;No;Desktop;;;;;;;
 29;3200;32;60;34.14;Remove an accidental O(n) issue I introduced in the TypeCache;No longer shown in Profiler;None;No;Desktop;;;;;;;
 30;3200;50;60;15.86;Optimize Particle Shader more by pooling emitters and better memory management.;No longer shown in Profiler;None;No;Desktop;;;;;;;
-31;18050;2;33;N/A;Seeing how many ships we can handle before going below 30 fps average.;N/A;N/A;N/A;Desktop;;;;;;;
-;;;;;;;;;;;;;;;;
+31;18050;2;33;N/A;Seeing how many ships I can handle before going below 30 fps average.;N/A;N/A;N/A;Desktop;;;;;;;
+32;1200;2;31;N/A;Seeing how many ships I can handle before going below 30 fps average.;N/A;N/A;N/A;Laptop;;;;;;;
 ;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;
