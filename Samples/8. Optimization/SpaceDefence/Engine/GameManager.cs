@@ -63,6 +63,25 @@ namespace SpaceDefence
         private readonly Bullet[] _bulletPool = new Bullet[BulletPoolCap];
         private int _bulletPoolNext = 0;
 
+        // ── Clump-leader election ─────────────────────────────────────────────
+        // Maps a packed (team | cellX | cellY) key to the elected leader ship
+        // for that cell.  Rebuilt every frame on the main thread before the
+        // parallel ship update, so no locking is needed.
+        private readonly Dictionary<long, Ship> _clumpCellLeaders = new();
+
+        // A grid cell of 150 px means ships within ~1 ship-length of each other
+        // share a leader.  Increase to group larger clumps; decrease for tighter
+        // per-ship accuracy.
+        private const int ClumpCellSize = 150;
+
+        // Re-elect clump leaders only once every N frames.  Ships move ~100 px/s
+        // so at 60 fps they travel ~1.7 px per frame; over 10 frames that is ~17 px —
+        // well within one clump cell (150 px).  Raise this to save more CPU;
+        // lower it if ships feel like they stop reacting to formation changes.
+        private const int ClumpElectionInterval = 10;
+        private int _clumpElectionCountdown = 0;
+        // ─────────────────────────────────────────────────────────────────────
+
         public static GameManager GetGameManager()
         {
             if (gameManager == null)
@@ -223,8 +242,58 @@ namespace SpaceDefence
                 foreach (GameObject ship in shipList)
                     _shipSpatialHash.Insert(ship);
 
-                // Update the ships
-                Parallel.ForEach(shipList, go => go.Update(gameTime));
+                // ── Clump-leader election ─────────────────────────────────────
+                // Run on the main thread (single-threaded, O(n)) only once every
+                // ClumpElectionInterval frames.  Between elections the previous
+                // assignments are reused — ships move slowly enough (~100 px/s,
+                // ~1.7 px/frame) that clumps stay valid for many frames.
+                //
+                // Edge case: if a leader dies mid-interval its followers detect
+                // this via ClumpLeader.IsActive in Ship.Update() and fall back to
+                // computing everything themselves until the next election.
+                if (--_clumpElectionCountdown <= 0)
+                {
+                    _clumpElectionCountdown = ClumpElectionInterval;
+                    _clumpCellLeaders.Clear();
+                    foreach (GameObject go in shipList)
+                    {
+                        Ship s = (Ship)go;
+                        Point center = s.GetPosition().Center;
+                        int cx = (int)Math.Floor((double)center.X / ClumpCellSize);
+                        int cy = (int)Math.Floor((double)center.Y / ClumpCellSize);
+                        int team = (int)(s.CollisionType & CollisionType.Teams);
+                        long key = ((long)team << 60)
+                                 | ((long)((uint)cx & 0x3FFFFFFF) << 30)
+                                 | ((uint)cy & 0x3FFFFFFF);
+
+                        if (_clumpCellLeaders.TryGetValue(key, out Ship leader))
+                            s.ClumpLeader = leader;         // follower
+                        else
+                        {
+                            _clumpCellLeaders[key] = s;
+                            s.ClumpLeader = null;           // leader
+                        }
+                    }
+                }
+                // ─────────────────────────────────────────────────────────────
+
+                // ── Phase 1: leader ships only ────────────────────────────────
+                // Leaders call FindNearestEnemy + AvoidObstacles and publish
+                // ClumpTarget / ClumpAvoidance before any follower reads them.
+                Parallel.ForEach(shipList, go =>
+                {
+                    if (((Ship)go).ClumpLeader == null)
+                        go.Update(gameTime);
+                });
+
+                // ── Phase 2: follower ships only ──────────────────────────────
+                // All leaders have finished writing; followers can safely read
+                // ClumpTarget and ClumpAvoidance with no locks.
+                Parallel.ForEach(shipList, go =>
+                {
+                    if (((Ship)go).ClumpLeader != null)
+                        go.Update(gameTime);
+                });
             }
 
             // Update all non-ships sequentially (usually a tiny list)
@@ -466,12 +535,6 @@ namespace SpaceDefence
             }
 
             return new List<T>();
-        }
-
-        internal List<GameObject> GetRawList(Type type)
-        {
-            _gameObjectsByType.TryGetValue(type, out var list);
-            return list;  // may be null; caller must null-check
         }
 
         /// <summary>

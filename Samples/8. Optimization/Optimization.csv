@@ -20,7 +20,7 @@
 19;3200;60;2;Not shown on Profiler;Use Jasper's spawn code for ships, shows issues better.;Not shown on Profiler;None;No;Desktop;;;;;;;
 20;3200;2;60;45.92;Parallel ship updates;No longer shown in Profiler;_toBeAdded/_toBeRemoved become ConcurrentQueue instead of List. API is unchanged.;No;Desktop;;;;;;;
 21;3200;2;60;38.13;Optimize SpacialHashGrid better by replacing HashSet with list in the query return for ships.;31.4;None;No;Desktop;;;;;;;
-22;;;;;;;;;;;;;;;;
+22;3200;2;60;26.6;"Implement ""Hive Mind"" behaviour for ships that are close to eachother to cut down on avoid and find calls.";No longer shown in Profiler;Extra check needed to see which ships are clumped together and assign one as a leader.;"Ships that are close together will use a ""leader"" to determine who to target and avoid. Meaning close ships copy eachotherts behaviour.";Desktop;;;;;;;
 23;;;;;;;;;;;;;;;;
 24;;;;;;;;;;;;;;;;
 25;;;;;;;;;;;;;;;;

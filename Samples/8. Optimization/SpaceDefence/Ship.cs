@@ -7,90 +7,102 @@ using System.Collections.Generic;
 
 namespace SpaceDefence
 {
-	public class Ship : GameObject
-	{
-		public Vector2 Velocity { get; private set; }
-		public float speed = 100;
-		public float Range = 500;
+    public class Ship : GameObject
+    {
+        public Vector2 Velocity { get; private set; }
+        public float speed = 100;
+        public float Range = 500;
 
-		public float AvoidanceRange = 100;
-		public float cooldown = 1;
-		public float health = 100;
+        public float AvoidanceRange = 100;
+        public float cooldown = 1;
+        public float health = 100;
 
-		private float _sqrtAvoidanceRange;
-        private readonly List<GameObject> _nearbyBullets = new List<GameObject>();
-        private readonly List<GameObject> _nearbyShips = new List<GameObject>();
+        private float _sqrtAvoidanceRange;
+        private readonly HashSet<GameObject> _nearbyBullets = new HashSet<GameObject>();
+        private readonly HashSet<GameObject> _nearbyShips = new HashSet<GameObject>();
 
         private double nextCheckForNearest = 0;
-		private Ship cachedNearestEnemy = null;
+        private Ship cachedNearestEnemy = null;
 
-		private Texture2D ship_body;
-		private Texture2D base_turret;
-		private Texture2D debug_pixel;
+        private Texture2D ship_body;
+        private Texture2D base_turret;
+        private Texture2D debug_pixel;
 
-		private RectangleCollider _rectangleCollider;
-		private Point target;
+        private RectangleCollider _rectangleCollider;
+        private Point target;
         private Color teamColor;
 
-		private Effect recolorShader;
-		private Matrix cachedProjection;
-		private int cachedViewportWidth;
-		private int cachedViewportHeight;
+        private Effect recolorShader;
+        private Matrix cachedProjection;
+        private int cachedViewportWidth;
+        private int cachedViewportHeight;
 
-		private GameManager manager => GameManager.GetGameManager();
+        private GameManager manager => GameManager.GetGameManager();
 
         public Color TeamColorValue => teamColor;
         public Effect ShaderEffect => recolorShader;
+
+        // ── Clump-leader fields ───────────────────────────────────────────────
+        // Set by GameManager each frame before the parallel ship update.
+        // null  → this ship IS the leader for its cell (computes everything normally).
+        // !null → this ship is a follower; it copies the leader's pre-computed values.
+        public Ship ClumpLeader = null;
+
+        // Written by a leader ship at the end of Phase-1 update so followers
+        // can read them safely in Phase-2 (no concurrent write/read).
+        public Point ClumpTarget = Point.Zero;
+        public Vector2 ClumpAvoidance = Vector2.Zero;
+        // ─────────────────────────────────────────────────────────────────────
 
         /// <summary>
         /// The player character
         /// </summary>
         /// <param name="Position">The ship's starting position</param>
         public Ship(Point Position, CollisionType collisionType, Color teamColor)
-		{
-			_rectangleCollider = new RectangleCollider(new Rectangle(Position, Point.Zero));
-			SetCollider(_rectangleCollider);
-			CollisionType = collisionType | CollisionType.Solid;
-			this.teamColor = teamColor;
-		}
+        {
+            _rectangleCollider = new RectangleCollider(new Rectangle(Position, Point.Zero));
+            SetCollider(_rectangleCollider);
+            CollisionType = collisionType | CollisionType.Solid;
+            this.teamColor = teamColor;
+        }
 
-		public override void Load(ContentManager content)
-		{
-			// Original ship sprites from: https://zintoki.itch.io/space-breaker
+        public override void Load(ContentManager content)
+        {
+            // Original ship sprites from: https://zintoki.itch.io/space-breaker
 
-			ship_body = content.Load<Texture2D>("ship_body");
-			base_turret = content.Load<Texture2D>("base_turret");
-			debug_pixel = content.Load<Texture2D>("pixel");
+            ship_body = content.Load<Texture2D>("ship_body");
+            base_turret = content.Load<Texture2D>("base_turret");
+            debug_pixel = content.Load<Texture2D>("pixel");
 
-			_rectangleCollider.shape.Size = ship_body.Bounds.Size;
-			_rectangleCollider.shape.Location -= new Point(ship_body.Width / 2, ship_body.Height / 2);
+            _rectangleCollider.shape.Size = ship_body.Bounds.Size;
+            _rectangleCollider.shape.Location -= new Point(ship_body.Width / 2, ship_body.Height / 2);
 
-			recolorShader = content.Load<Effect>("RecolorShader");
+            recolorShader = content.Load<Effect>("RecolorShader");
 
-			_sqrtAvoidanceRange = MathF.Sqrt(AvoidanceRange);
+            _sqrtAvoidanceRange = MathF.Sqrt(AvoidanceRange);
 
-			base.Load(content);
-		}
+            base.Load(content);
+        }
 
-		public override void HandleInput(InputManager inputManager)
-		{
-			base.HandleInput(inputManager);
-			if (inputManager.LeftMousePress())
-			{
-				Shoot();
-			}
-		}
+        public override void HandleInput(InputManager inputManager)
+        {
+            base.HandleInput(inputManager);
+            if (inputManager.LeftMousePress())
+            {
+                Shoot();
+            }
+        }
 
-		public override void OnCollision(GameObject other)
-		{
-			base.OnCollision(other);
+        public override void OnCollision(GameObject other)
+        {
+            base.OnCollision(other);
 
-			if (other is Bullet && (other.CollisionType & CollisionType) == 0)
-			{
-				health -= 1;
-				if (health < 0)
-				{
-					manager.RemoveGameObject(this);
+            if (other is Bullet && (other.CollisionType & CollisionType) == 0)
+            {
+                health -= 1;
+                if (health < 0)
+                {
+                    manager.RemoveGameObject(this);
                     ParticleData data = new ParticleData
                     {
                         lifespan = 5,
@@ -101,36 +113,70 @@ namespace SpaceDefence
                     manager.AddGameObject(new GpuParticleEmitter(
                         GetPosition().Center.ToVector2(), data));
                 }
-			}
-		}
+            }
+        }
 
 
-		public override void Update(GameTime gameTime)
-		{
-			base.Update(gameTime);
-
-            Rectangle pos = GetPosition();
-            Point center = pos.Center;
-
+        public override void Update(GameTime gameTime)
+        {
+            base.Update(gameTime);
             cooldown -= (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-			Ship nearest = FindNearestEnemy(gameTime);
-			target = nearest == null ? Point.Zero : nearest.GetPosition().Center;
+            // Cache position once — GetPosition() walks the collider chain each call.
+            Point center = GetPosition().Center;
 
-			if ((target - center).ToVector2().LengthSquared() < Range * Range)
-			{
-				if (cooldown < 0)
-				{
-					_rectangleCollider.shape.Location += Shoot();
-				}
-			}
-			else
-			{
-				_rectangleCollider.shape.Location += (Vector2.Normalize((target - center).ToVector2()) * speed * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
-			}
+            if (ClumpLeader != null && ClumpLeader.IsActive)
+            {
+                // ── Follower path ─────────────────────────────────────────────────
+                // The leader ran in Phase 1 and has already written ClumpTarget and
+                // ClumpAvoidance for this frame.  We just copy and apply them.
+                // FindNearestEnemy + AvoidObstacles are NOT called — that is the
+                // entire point of this optimisation.
+                target = ClumpLeader.ClumpTarget;
+                Vector2 avoidance = ClumpLeader.ClumpAvoidance;
 
-			_rectangleCollider.shape.Location += (AvoidObstacles() * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
-		}
+                if ((target - center).ToVector2().LengthSquared() < Range * Range)
+                {
+                    if (cooldown < 0)
+                        _rectangleCollider.shape.Location += Shoot();
+                }
+                else
+                {
+                    _rectangleCollider.shape.Location +=
+                        (Vector2.Normalize((target - center).ToVector2()) * speed
+                         * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
+                }
+                _rectangleCollider.shape.Location +=
+                    (avoidance * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
+                return;
+            }
+
+            // ── Leader (or singleton) path ────────────────────────────────────────
+            // Compute everything normally, then publish results for followers.
+            Ship nearest = FindNearestEnemy(gameTime);
+            ClumpTarget = nearest == null ? Point.Zero : nearest.GetPosition().Center;
+            target = ClumpTarget;
+
+            if ((target - center).ToVector2().LengthSquared() < Range * Range)
+            {
+                if (cooldown < 0)
+                {
+                    _rectangleCollider.shape.Location += Shoot();
+                }
+            }
+            else
+            {
+                _rectangleCollider.shape.Location +=
+                    (Vector2.Normalize((target - center).ToVector2()) * speed
+                     * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
+            }
+
+            // Publish avoidance AFTER computing it so followers always read
+            // a fully computed value (never a partially-written intermediate).
+            ClumpAvoidance = AvoidObstacles();
+            _rectangleCollider.shape.Location +=
+                (ClumpAvoidance * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
+        }
 
         public Point Shoot()
         {
@@ -145,54 +191,55 @@ namespace SpaceDefence
         }
 
         public Vector2 AvoidObstacles()
-		{
-            if (manager.BulletSpatialHash.IsEmpty) return Vector2.Zero;
-
+        {
             Vector2 pos = GetPosition().Center.ToVector2();
 
-			// Build a square query region that encloses the avoidance circle.
-			// With CellSize = 150 and AvoidanceRange = 100, this touches at most
-			// a 3×3 block of cells - regardless of how many bullets exist in the world.
-			int range = (int)AvoidanceRange;
+            // Build a square query region that encloses the avoidance circle.
+            // With CellSize = 150 and AvoidanceRange = 100, this touches at most
+            // a 3×3 block of cells - regardless of how many bullets exist in the world.
+            int range = (int)AvoidanceRange;
 
-			Rectangle queryBounds = new Rectangle(
-				(int)pos.X - range,
-				(int)pos.Y - range,
-				range * 2,
-				range * 2);
+            Rectangle queryBounds = new Rectangle(
+                (int)pos.X - range,
+                (int)pos.Y - range,
+                range * 2,
+                range * 2);
 
-			manager.BulletSpatialHash.QueryRegion(queryBounds, _nearbyBullets);
+            manager.BulletSpatialHash.QueryRegion(queryBounds, _nearbyBullets);
 
-			Vector2 avoidance = Vector2.Zero;
-			float avoidRangeSq = AvoidanceRange * AvoidanceRange;
+            Vector2 avoidance = Vector2.Zero;
+            float avoidRangeSq = AvoidanceRange * AvoidanceRange;
 
-			foreach (GameObject other in _nearbyBullets)
-			{
+            foreach (GameObject other in _nearbyBullets)
+            {
 
-				Vector2 difference = pos - other.GetPosition().Center.ToVector2();
-				float distSq = difference.LengthSquared();
+                Vector2 difference = pos - other.GetPosition().Center.ToVector2();
+                float distSq = difference.LengthSquared();
 
-				// Cheap squared-distance rejection before computing any sqrt.
-				if (distSq >= avoidRangeSq) continue;
+                // Cheap squared-distance rejection before computing any sqrt.
+                if (distSq >= avoidRangeSq) continue;
 
-				// We need dist^1.5 in the denominator:
-				//   original: Normalize(diff) / sqrt(dist)
-				//           = (diff / dist) / sqrt(dist)
-				//           = diff / (dist * sqrt(dist))
-				// Two sqrts total vs. three in the original (Length + Normalize + sqrt).
-				float dist = MathF.Sqrt(distSq);
-				float sqrtDist = MathF.Sqrt(dist);
+                // We need dist^1.5 in the denominator:
+                //   original: Normalize(diff) / sqrt(dist)
+                //           = (diff / dist) / sqrt(dist)
+                //           = diff / (dist * sqrt(dist))
+                // Two sqrts total vs. three in the original (Length + Normalize + sqrt).
+                float dist = MathF.Sqrt(distSq);
+                float sqrtDist = MathF.Sqrt(dist);
 
-				avoidance += _sqrtAvoidanceRange * speed * difference / (dist * sqrtDist);
-			}
+                avoidance += _sqrtAvoidanceRange * speed * difference / (dist * sqrtDist);
+            }
 
-			return avoidance;
-		}
+            return avoidance;
+        }
 
         public Ship FindNearestEnemy(GameTime gameTime)
         {
-            if (cachedNearestEnemy != null && gameTime.TotalGameTime.TotalMilliseconds < nextCheckForNearest)
+            if (cachedNearestEnemy != null && nextCheckForNearest > gameTime.ElapsedGameTime.TotalMilliseconds)
+            {
+                nextCheckForNearest -= gameTime.ElapsedGameTime.TotalMilliseconds;
                 return cachedNearestEnemy;
+            }
 
             Ship nearest = null;
             Vector2 pos = GetPosition().Center.ToVector2();
@@ -229,29 +276,27 @@ namespace SpaceDefence
             bool usedFallback = (nearest == null);
             if (nearest == null)
             {
-                var rawShips = manager.GetRawList(typeof(Ship));
-                if (rawShips != null)
-                    foreach (GameObject candidate in rawShips)
+                foreach (GameObject candidate in manager.GetGameObjectsByType<Ship>())
+                {
+                    Ship othership = (Ship)candidate;
+                    if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
+                        continue;
+
+                    Vector2 newPos = othership.GetPosition().Center.ToVector2();
+                    float distSq = (pos - newPos).LengthSquared();
+
+                    if (distSq < bestDistSq)
                     {
-                        Ship othership = (Ship)candidate;
-                        if ((othership.CollisionType & CollisionType.Teams) == (CollisionType & CollisionType.Teams))
-                            continue;
-
-                        Vector2 newPos = othership.GetPosition().Center.ToVector2();
-                        float distSq = (pos - newPos).LengthSquared();
-
-                        if (distSq < bestDistSq)
-                        {
-                            bestDistSq = distSq;
-                            nearest = othership;
-                        }
+                        bestDistSq = distSq;
+                        nearest = othership;
                     }
+                }
             }
 
             cachedNearestEnemy = nearest;
 
             double cacheMs = usedFallback ? manager.RNG.Next(500, 1000) : manager.RNG.Next(33, 66);
-            nextCheckForNearest = gameTime.TotalGameTime.TotalMilliseconds + cacheMs;
+            nextCheckForNearest = gameTime.ElapsedGameTime.TotalMilliseconds + cacheMs;
             return nearest;
         }
 
@@ -269,7 +314,7 @@ namespace SpaceDefence
         }
 
         public void Draw(GameTime gameTime, SpriteBatch spriteBatch, Matrix worldMatrix)
-		{
+        {
             // Debug draw the collider
             // spriteBatch.Begin(transformMatrix: worldMatrix);
             // spriteBatch.Draw(debug_pixel, _rectangleCollider.shape, Color.Yellow);
@@ -304,5 +349,5 @@ namespace SpaceDefence
 
             spriteBatch.End();
         }
-	}
+    }
 }
