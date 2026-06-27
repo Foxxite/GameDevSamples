@@ -24,6 +24,7 @@ namespace SpaceDefence
 		public ParticleData()
 		{ }
 	}
+
 	public class ParticleEmitter
 	{
 		Random random = new Random();

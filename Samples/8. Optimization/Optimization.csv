@@ -16,14 +16,14 @@
 15;2738;10;50;Not shown on Profiler;Batch call ship draws instead of one by one;Not shown on Profiler;Slightly more coupling between GameManager and Ship. New teams need to be added to batch calls.;No;Desktop;;;;;;;
 16;2738;2;10;Not shown on Profiler;Object pooling for bullets. Capped to 4k bullets at a time.;Not shown on Profiler;Slightly more coupling between GameManager, Bullet and Ship. GameManager holds the bullet pool.;Oldest bullet is reset if there are no bullets in the pool. With a lot of ships, they might not be able to hit eachother.;Desktop;;;;;;;
 17;2738;10;60;Not shown on Profiler;Replace particles with a shader.;Not shown on Profiler;Particles are now controlled via shader params.;No;Desktop;;;;;;;
-18;3200;2;60;Not shown on Profiler;ViewSpace Culling. Don't render that we can't see.;Not shown on Profiler;None;No;Desktop;;;;;;;
+18;3200;2;60;Not shown on Profiler;Viewport Culling. Don't render what we can't see.;Not shown on Profiler;None;No;Desktop;;;;;;;
 19;3200;60;2;Not shown on Profiler;Use Jasper's spawn code for ships, shows issues better.;Not shown on Profiler;None;No;Desktop;;;;;;;
 20;3200;2;60;45.92;Parallel ship updates;No longer shown in Profiler;_toBeAdded/_toBeRemoved become ConcurrentQueue instead of List. API is unchanged.;No;Desktop;;;;;;;
 21;3200;2;60;38.13;Optimize SpacialHashGrid better by replacing HashSet with list in the query return for ships.;31.4;None;No;Desktop;;;;;;;
 22;3200;2;60;26.6;"Implement ""Hive Mind"" behaviour for ships that are close to eachother to cut down on avoid and find calls.";No longer shown in Profiler;Extra check needed to see which ships are clumped together and assign one as a leader.;"Ships that are close together will use a ""leader"" to determine who to target and avoid. Meaning close ships copy eachotherts behaviour.";Desktop;;;;;;;
 23;3200;2;60;43.78;Optimize SpacialHash Query better;30.42;None;No;Desktop;;;;;;;
 24;3200;10;60;Not shown on Profiler;Optimize cache busts that cause giant lagg spikes;Not shown on Profiler;None;No;Desktop;;;;;;;
-25;3200;10;60;25.85;Remove find nearest enemy fallback;No longer shown in Profiler;None;Ships won't shoot at all when the spacial hash returns nothing.;Desktop;;;;;;;
+25;3200;10;60;25.85;Smarter find nearest fallback. Replace the broad fallback search with a more targeted one to cut down on cost.;No longer shown in Profiler;None;Ships use a different fallback when the spacial hash returns nothing, so targeting behaviour may differ slightly from the original in edge cases.;Desktop;;;;;;;
 26;3200;20;60;Not shown on Profiler;Double the ShipSpatialHash cell size;Not shown on Profiler;None;No;Desktop;;;;;;;
 27;3200;20;60;Not shown on Profiler;Increase clump size and re-election interval;Not shown on Profiler;None;No;Desktop;;;;;;;
 28;3200;20;60;27.06;Optimize CheckCollsion even more;No longer shown in Profiler;This is getting into manaing memoery myself teritory. Making reading and understanindg the code quite hard.;No;Desktop;;;;;;;
