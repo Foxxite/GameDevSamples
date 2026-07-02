@@ -129,7 +129,7 @@ namespace SpaceDefence
                 // ClumpAvoidance for this frame. Copy and apply them for this follower ship. 
                 // This avoids the expensive FindNearestEnemy and AvoidObstacles calls.
                 target = ClumpLeader.ClumpTarget;
-                Vector2 avoidance = ClumpLeader.ClumpAvoidance;
+                Vector2 avoidance = JitterAvoidance(ClumpLeader.ClumpAvoidance);
 
                 if ((target - center).ToVector2().LengthSquared() < Range * Range)
                 {
@@ -170,6 +170,31 @@ namespace SpaceDefence
             ClumpAvoidance = AvoidObstacles();
             _rectangleCollider.shape.Location +=
                 (ClumpAvoidance * (float)gameTime.ElapsedGameTime.TotalSeconds).ToPoint();
+        }
+
+        // Small random rotation + magnitude scale applied to a follower's copy of
+        // its leader's ClumpAvoidance vector. Every follower in a clump would
+        // otherwise apply the exact same avoidance vector every frame (since
+        // AvoidObstacles() deliberately ignores same-clump ships - see the
+        // ClumpLeader == this check there), which means nothing differentiates
+        // their movement and the clump can drift together as a single rigid
+        // blob instead of spreading out. Jittering each follower's copy gives
+        // every ship a slightly different push each frame, which is enough for
+        // natural-looking separation over a few frames without the cost of a
+        // separate periodic query/un-stack pass.
+        private static Vector2 JitterAvoidance(Vector2 avoidance)
+        {
+            if (avoidance == Vector2.Zero) return avoidance;
+
+            float angle = ((float)Random.Shared.NextDouble() - 0.5f) * MathHelper.ToRadians(50f); // ±25°
+            float scale = 0.6f + (float)Random.Shared.NextDouble() * 0.8f; // 0.6x - 1.4x
+
+            float cos = MathF.Cos(angle), sin = MathF.Sin(angle);
+            Vector2 rotated = new Vector2(
+                avoidance.X * cos - avoidance.Y * sin,
+                avoidance.X * sin + avoidance.Y * cos);
+
+            return rotated * scale;
         }
 
         public Point Shoot()
@@ -225,6 +250,17 @@ namespace SpaceDefence
             foreach (GameObject other in _nearbyShips)
             {
                 if (other == this || !other.CollisionType.HasFlag(CollisionType.Solid))
+                    continue;
+
+                // AvoidObstacles() only ever runs on a clump leader (see Update()),
+                // and its result is shared verbatim with every follower in its cell.
+                // Those followers sit inside AvoidanceRange of the leader by
+                // construction (ClumpCellSize=300 vs. AvoidanceRange=100), so without
+                // this check the leader would compute a repulsion force against its
+                // own group and shove the whole clump around instead of spreading it
+                // out. Skip own-clump members; still avoid everyone else (other
+                // clumps, singleton ships, the enemy team).
+                if (((Ship)other).ClumpLeader == this)
                     continue;
 
                 Vector2 difference = pos - other.GetPosition().Center.ToVector2();

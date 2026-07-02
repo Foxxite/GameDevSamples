@@ -28,7 +28,7 @@ namespace SpaceDefence
 			{
 				for (int j = 0; j < ShipColumns; j++)
 				{
-					Point team1Pos = new Point(r.Next(20) + 200 + j * XSpacing, r.Next(20) + 200 + i * YSpacing);
+					Point team1Pos = new Point(r.Next(20) + 200 + j * XSpacing, -1800 + r.Next(20) + 200 + i * YSpacing);
 					Point team2Pos = new Point(r.Next(20) + 200 + j * XSpacing, 2000 + r.Next(20) + 200 + i * YSpacing);
 					Ship player = new Ship(team1Pos, CollisionType.Team1, Color.Red);
 					Ship player2 = new Ship(team2Pos, CollisionType.Team2, Color.Blue);
