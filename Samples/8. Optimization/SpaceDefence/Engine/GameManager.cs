@@ -27,11 +27,7 @@ namespace SpaceDefence
         // Broad-phase spatial hash; rebuilt every CheckCollision() call.
         private readonly SpatialHash _spatialHash = new SpatialHash();
 
-        // Ship-only spatial hash used by Ship.FindNearestEnemy() and Ship.AvoidObstacles().
-        // The original AvoidObstacles avoids every Solid GameObject, and bullets always
-        // strip the Solid flag (see Bullet.Reset), so ships are the only Solid objects -
-        // one hash serves both queries.
-        // Rebuilt once per Update() so all ships see a consistent snapshot.
+        // Broad-phase spatial hash; rebuilt every CheckCollision() call.
         private readonly SpatialHash _shipSpatialHash = new SpatialHash();
 
         /// <summary>Read-only access to the ship spatial hash for Ship.FindNearestEnemy().</summary>
@@ -67,8 +63,7 @@ namespace SpaceDefence
 
         // A grid cell of 150 px means ships within ~1 ship-length of each other
         // share a leader. Increase to group larger clumps; decrease for tighter
-        // per-ship accuracy. Public + mutable so it can be tuned live via
-        // mouse-wheel (see HandleInput).
+        // per-ship accuracy.
         public int ShipGroupingCellSize = 80;
 
         // Re-elect clump leaders only once every N frames.  Ships move ~100 px/s
@@ -138,13 +133,13 @@ namespace SpaceDefence
         }
 
         /// <summary>Rent a bullet from the pool (or reset the oldest one).</summary>
-        /// <summary>
-        /// Rent a bullet from the fixed-size ring buffer and register it with the
-        /// game. The caller must NOT call AddGameObject separately.
-        ///
-        /// If the ring has wrapped (> poolSize simultaneous bullets) the oldest
-        /// in-flight bullet is reset to the new parameters.
-        /// </summary>
+		/// <summary>
+		/// Rent a bullet from the fixed-size ring buffer and register it with the
+		/// game. The caller must NOT call AddGameObject separately.
+		///
+		/// If the ring has wrapped (> poolSize simultaneous bullets) the oldest
+		/// in-flight bullet is reset to the new parameters.
+		/// </summary>
         public Bullet RentAndAddBullet(Vector2 location, Vector2 direction,
                                        float speed, CollisionType collisionType)
         {
@@ -176,6 +171,10 @@ namespace SpaceDefence
         public void ReturnBullet(Bullet b) => b.IsActive = false;
 
 
+        /// <summary>
+        /// Prewarms the GPU emitter pool. Allocating memory on the GPU and loading needed assets.
+        /// </summary>
+        /// <param name="content"></param>
         private void PrewarmEmitterPool(ContentManager content)
         {
             ParticleData template = new ParticleData
@@ -208,7 +207,7 @@ namespace SpaceDefence
 
         public void CheckCollision()
         {
-            // Ship-only spatial hash - no bullets, no bullet-bullet pairs possible
+            // Ship-only spatial hash
             _spatialHash.Clear();
             if (_gameObjectsByType.TryGetValue(typeof(Ship), out var ships))
                 foreach (var s in ships)
@@ -246,9 +245,8 @@ namespace SpaceDefence
             InputManager.Update();
             HandleInput(InputManager);
 
-            // Rebuild the ship spatial hash once per frame so that every ship
-            // can do a cheap local query in FindNearestEnemy() and AvoidObstacles()
-            // instead of scanning the full object list.
+            // Rebuild the bullet hash from current bullet positions so that every
+            // ship queries the same snapshot when AvoidObstacles() runs below.
             _shipSpatialHash.Clear();
             if (_gameObjectsByType.TryGetValue(typeof(Ship), out List<GameObject> shipList))
             {
@@ -544,9 +542,11 @@ namespace SpaceDefence
             go.AllObjectsIndex = -1;
         }
 
+        /// <summary>
+        /// Flat list of GameObjects
+        /// </summary>
         public List<GameObject> GetGameObjects()
         {
-            // Returns the maintained flat list - no allocation, no LINQ.
             return _allGameObjects;
         }
 

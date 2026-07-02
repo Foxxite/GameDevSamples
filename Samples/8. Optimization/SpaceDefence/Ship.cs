@@ -174,14 +174,11 @@ namespace SpaceDefence
 
         // Small random rotation + magnitude scale applied to a follower's copy of
         // its leader's ClumpAvoidance vector. Every follower in a clump would
-        // otherwise apply the exact same avoidance vector every frame (since
-        // AvoidObstacles() deliberately ignores same-clump ships - see the
-        // ClumpLeader == this check there), which means nothing differentiates
-        // their movement and the clump can drift together as a single rigid
-        // blob instead of spreading out. Jittering each follower's copy gives
-        // every ship a slightly different push each frame, which is enough for
-        // natural-looking separation over a few frames without the cost of a
-        // separate periodic query/un-stack pass.
+        // otherwise apply the exact same avoidance vector every frame,
+        // which means nothing differentiates their movement and the clump can
+        // drift together as a single rigid blob instead of spreading out.
+        // Jittering each follower's copy gives every ship a slightly different
+        // push each frame, which is enough for natural-looking separation.
         private static Vector2 JitterAvoidance(Vector2 avoidance)
         {
             if (avoidance == Vector2.Zero) return avoidance;
@@ -209,24 +206,16 @@ namespace SpaceDefence
         }
 
         // AvoidObstacles' repulsion force grows as 1/sqrt(distance), which is
-        // unbounded as ships get very close together (e.g. right after spawn,
-        // where the grid spacing + random jitter can put several ships almost
-        // on top of each other, or when many neighbours stack on the same side
-        // at once). Without limits a handful of ships in a dense cluster can
+        // unbounded as ships get very close together.
+        // Without limits a handful of ships in a dense cluster can
         // get flung across the map in a single frame. These two constants keep
         // that in check without changing the avoidance behaviour at normal,
         // non-overlapping distances:
-        private const float MinAvoidanceDist = 5f;      // floor so dist -> 0 can't divide-blow-up
-        private const float MaxAvoidanceSpeed = 400f;   // hard cap on the resulting push (4x base ship speed)
+        private const float MinAvoidanceDist = 5f;
+        private const float MaxAvoidanceSpeed = 400f;
 
         public Vector2 AvoidObstacles()
         {
-            // NOTE: the original (unoptimized) AvoidObstacles loops over every GameObject
-            // with the Solid flag set. Bullets always strip Solid from their CollisionType
-            // (see Bullet.Reset/constructor), so in practice the only Solid objects in this
-            // game are other Ships. The avoidance query therefore has to run against the
-            // ship spatial hash, not the bullet one - querying bullets here silently
-            // disabled ship-vs-ship avoidance and changed how ships clump/spread visually.
             if (manager.ShipSpatialHash.IsEmpty) return Vector2.Zero;
 
             Vector2 pos = GetPosition().Center.ToVector2();
@@ -252,14 +241,6 @@ namespace SpaceDefence
                 if (other == this || !other.CollisionType.HasFlag(CollisionType.Solid))
                     continue;
 
-                // AvoidObstacles() only ever runs on a clump leader (see Update()),
-                // and its result is shared verbatim with every follower in its cell.
-                // Those followers sit inside AvoidanceRange of the leader by
-                // construction (ClumpCellSize=300 vs. AvoidanceRange=100), so without
-                // this check the leader would compute a repulsion force against its
-                // own group and shove the whole clump around instead of spreading it
-                // out. Skip own-clump members; still avoid everyone else (other
-                // clumps, singleton ships, the enemy team).
                 if (((Ship)other).ClumpLeader == this)
                     continue;
 
@@ -325,13 +306,8 @@ namespace SpaceDefence
                 }
             }
 
-            // Fallback: no enemy was found within Range via the spatial hash. This is
-            // common early in a match, since teams can spawn much farther apart than
-            // Range (up to ~2600px here vs. Range = 500). The original always scans
-            // every GameObject with no range limit at all, so to stay visually
-            // identical this fallback must also find the TRUE nearest enemy - not
-            // just the first one encountered in list order, which would make ships
-            // converge on arbitrary targets instead of their nearest opponent.
+            // Fallback: if no enemy was found within Range (e.g. early in the match
+            // when teams are far apart).
             bool usedFallback = (nearest == null);
             if (nearest == null)
             {
