@@ -73,7 +73,7 @@ namespace SpaceDefence
 		// A grid cell of 150 px means ships within ~1 ship-length of each other
 		// share a leader. Increase to group larger clumps; decrease for tighter
 		// per-ship accuracy.
-		private const int ClumpCellSize = 300;
+		private const int ClumpCellSize = 150;
 
 		// Re-elect clump leaders only once every N frames.  Ships move ~100 px/s
 		// so at 60 fps they travel ~1.7 px per frame; over 10 frames that is ~17 px,
