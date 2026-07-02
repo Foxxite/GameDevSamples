@@ -88,5 +88,14 @@ namespace SpaceDefence
         {
             return CurrentMouseState.RightButton == ButtonState.Pressed && LastMouseState.RightButton == ButtonState.Released;
         }
+
+        /// <summary>
+        /// Gets the change in scroll wheel value since the last frame.
+        /// </summary>
+        /// <returns>Positive if scrolled up, negative if scrolled down, 0 if not scrolled.</returns>
+        public int GetScrollWheelDelta()
+        {
+            return CurrentMouseState.ScrollWheelValue - LastMouseState.ScrollWheelValue;
+        }
     }
 }

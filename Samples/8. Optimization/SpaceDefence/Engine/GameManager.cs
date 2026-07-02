@@ -73,7 +73,7 @@ namespace SpaceDefence
 		// A grid cell of 150 px means ships within ~1 ship-length of each other
 		// share a leader. Increase to group larger clumps; decrease for tighter
 		// per-ship accuracy.
-		private const int ClumpCellSize = 150;
+		public int ShipGroupingCellSize = 10;
 
 		// Re-elect clump leaders only once every N frames.  Ships move ~100 px/s
 		// so at 60 fps they travel ~1.7 px per frame; over 10 frames that is ~17 px,
@@ -203,7 +203,11 @@ namespace SpaceDefence
 			{
 				gameObject.HandleInput(this.InputManager);
 			}
-		}
+
+            ShipGroupingCellSize = MathHelper.Clamp(
+				ShipGroupingCellSize + inputManager.GetScrollWheelDelta() / 120, // /120 because one "notch" of scroll = 120
+			1, 999);
+        }
 
 		public void CheckCollision()
 		{
@@ -283,8 +287,8 @@ namespace SpaceDefence
 					{
 						Ship s = (Ship)go;
 						Point center = s.GetPosition().Center;
-						int cx = (int)Math.Floor((double)center.X / ClumpCellSize);
-						int cy = (int)Math.Floor((double)center.Y / ClumpCellSize);
+						int cx = (int)Math.Floor((double)center.X / ShipGroupingCellSize);
+						int cy = (int)Math.Floor((double)center.Y / ShipGroupingCellSize);
 						int team = (int)(s.CollisionType & CollisionType.Teams);
 						long key = ((long)team << 60)
 								 | ((long)((uint)cx & 0x3FFFFFFF) << 30)
